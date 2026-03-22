@@ -6,19 +6,25 @@
     ".": "./src/index.ts",
     "./lib/storage": "./src/lib/storage.ts",
     "./lib/clamav": "./src/lib/clamav.ts",
+    "./lib/imap-client": "./src/lib/imap-client.ts",
+    "./lib/booking-parser": "./src/lib/booking-parser.ts",
     "./utils/id": "./src/utils/id.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.80.0",
     "@aws-sdk/client-s3": "^3.1014.0",
     "@aws-sdk/s3-request-presigner": "^3.1014.0",
     "@trip/db": "workspace:*",
     "@trip/shared": "workspace:*",
     "@trpc/server": "^11.1.0",
     "drizzle-orm": "^0.41.0",
+    "imapflow": "^1.2.16",
+    "mailparser": "^3.9.4",
     "zod": "^3.24.2"
   },
   "devDependencies": {
     "@trip/config": "workspace:*",
+    "@types/mailparser": "^3.4.6",
     "typescript": "^5.8.2"
   }
 }

@@ -3,6 +3,7 @@
 import { use } from "react";
 import { trpc } from "@/lib/trpc";
 import { Timeline } from "@/components/itinerary/timeline";
+import { DraftReview } from "@/components/imports/draft-review";
 import { AlertCircle } from "lucide-react";
 
 interface ItineraryPageProps {
@@ -31,10 +32,16 @@ export default function ItineraryPage({ params }: ItineraryPageProps) {
   }
 
   return (
-    <Timeline
-      tripId={trip.id}
-      startDate={trip.startDate}
-      endDate={trip.endDate}
-    />
+    <div className="space-y-6">
+      {/* Gmail import + draft review queue */}
+      <DraftReview tripId={tripId} />
+
+      {/* Main itinerary timeline */}
+      <Timeline
+        tripId={trip.id}
+        startDate={trip.startDate}
+        endDate={trip.endDate}
+      />
+    </div>
   );
 }
