@@ -1,0 +1,29 @@
+# Local development: http only
+# For VPS with a domain, replace :80 with your domain and Caddy will auto-get HTTPS certs
+
+:80 {
+    # Proxy all requests to Next.js
+    reverse_proxy app:3000 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+
+    # Compress responses
+    encode gzip
+
+    # Security headers
+    header {
+        X-Content-Type-Options nosniff
+        X-Frame-Options DENY
+        Referrer-Policy strict-origin-when-cross-origin
+        -Server
+    }
+}
+
+# MinIO storage accessible at /storage/* path
+# Uncomment if you want to serve files through Caddy instead of direct MinIO
+# :80/storage/* {
+#     reverse_proxy minio:9000
+# }

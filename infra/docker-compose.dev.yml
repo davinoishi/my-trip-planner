@@ -1,0 +1,36 @@
+# Development override — run with:
+# docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+#
+# This starts only the backing services (no app container).
+# The Next.js dev server runs on your host machine with `pnpm dev`.
+
+name: my-trip-planner
+
+services:
+  # Override: expose Postgres directly (no pgbouncer in dev)
+  postgres:
+    ports:
+      - "5432:5432"
+
+  redis:
+    ports:
+      - "6379:6379"
+
+  minio:
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+
+  clamav:
+    ports:
+      - "3310:3310"
+
+  # Disable the app and caddy in dev — run Next.js locally instead
+  app:
+    profiles: ["production-only"]
+
+  caddy:
+    profiles: ["production-only"]
+
+  pgbouncer:
+    profiles: ["production-only"]
