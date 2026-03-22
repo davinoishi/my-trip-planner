@@ -1,14 +1,40 @@
-import { List } from "lucide-react";
+"use client";
 
-// Sprint 3 will build the full itinerary timeline here.
-export default function ItineraryPage() {
-  return (
-    <div className="flex flex-col items-center justify-center py-20 bg-white rounded-2xl border border-gray-100 border-dashed">
-      <div className="bg-blue-50 w-14 h-14 rounded-2xl flex items-center justify-center mb-4">
-        <List className="w-7 h-7 text-blue-400" />
+import { use } from "react";
+import { trpc } from "@/lib/trpc";
+import { Timeline } from "@/components/itinerary/timeline";
+import { AlertCircle } from "lucide-react";
+
+interface ItineraryPageProps {
+  params: Promise<{ tripId: string }>;
+}
+
+export default function ItineraryPage({ params }: ItineraryPageProps) {
+  const { tripId } = use(params);
+  const { data: trip, isLoading, error } = trpc.trips.getById.useQuery({ id: tripId });
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-20 text-sm text-gray-400">
+        Loading…
       </div>
-      <p className="text-gray-500 font-medium">Itinerary coming in Sprint 3</p>
-      <p className="text-gray-400 text-sm mt-1">Add flights, hotels, activities and more</p>
-    </div>
+    );
+  }
+
+  if (error || !trip) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-sm text-red-500 gap-2">
+        <AlertCircle size={24} />
+        Could not load trip.
+      </div>
+    );
+  }
+
+  return (
+    <Timeline
+      tripId={trip.id}
+      startDate={trip.startDate}
+      endDate={trip.endDate}
+    />
   );
 }

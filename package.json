@@ -10,6 +10,7 @@
     "db:migrate": "turbo run db:migrate",
     "db:studio": "cd packages/db && pnpm drizzle-kit studio"
   },
+  "packageManager": "pnpm@10.32.1",
   "devDependencies": {
     "turbo": "^2.3.3"
   },

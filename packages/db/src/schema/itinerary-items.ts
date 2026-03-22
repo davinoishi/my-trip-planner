@@ -4,6 +4,7 @@ import {
   timestamp,
   integer,
   real,
+  jsonb,
   pgEnum,
   index,
 } from "drizzle-orm/pg-core";
@@ -39,6 +40,9 @@ export const itineraryItems = pgTable(
     sortOrder: integer("sort_order").notNull().default(0),
     source: itemSourceEnum("source").notNull().default("manual"),
     confidenceScore: real("confidence_score"), // 0.0–1.0 for imported items
+    startTime: text("start_time"), // "HH:MM" for display and sorting within day
+    endTime: text("end_time"),     // "HH:MM"
+    details: jsonb("details"),     // type-specific booking data
     isDraft: integer("is_draft").notNull().default(0), // 1 = pending review
     version: integer("version").notNull().default(1), // optimistic locking
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
