@@ -1,6 +1,6 @@
-import { router } from "./trpc.js";
-import { usersRouter } from "./routers/users.js";
-import { tripsRouter } from "./routers/trips.js";
+import { router } from "./trpc";
+import { usersRouter } from "./routers/users";
+import { tripsRouter } from "./routers/trips";
 
 export const appRouter = router({
   users: usersRouter,
@@ -8,5 +8,5 @@ export const appRouter = router({
 });
 
 export type AppRouter = typeof appRouter;
-export { router, publicProcedure, protectedProcedure } from "./trpc.js";
-export type { Context } from "./context.js";
+export { router, publicProcedure, protectedProcedure } from "./trpc";
+export type { Context } from "./context";

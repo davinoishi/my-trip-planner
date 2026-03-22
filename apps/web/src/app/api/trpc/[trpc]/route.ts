@@ -1,7 +1,8 @@
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import { appRouter } from "@trip/api";
 import { auth } from "@/lib/auth";
-import { db } from "@trip/db";
+import { db, users } from "@trip/db";
+import { eq } from "drizzle-orm";
 import type { NextRequest } from "next/server";
 
 const handler = (req: NextRequest) =>
@@ -11,10 +12,16 @@ const handler = (req: NextRequest) =>
     router: appRouter,
     createContext: async () => {
       const session = await auth.api.getSession({ headers: req.headers });
+
+      // Better Auth returns a slim user type; fetch full user record from DB
+      const fullUser = session?.user?.id
+        ? await db.query.users.findFirst({ where: eq(users.id, session.user.id) }) ?? null
+        : null;
+
       return {
         db,
         session: session?.session ?? null,
-        user: session?.user ?? null,
+        user: fullUser,
       };
     },
     onError:

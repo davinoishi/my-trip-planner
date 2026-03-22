@@ -1,3 +1,3 @@
-export * from "./types/enums.js";
-export * from "./schemas/trip.js";
-export * from "./utils/dates.js";
+export * from "./types/enums";
+export * from "./schemas/trip";
+export * from "./utils/dates";

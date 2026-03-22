@@ -1,20 +1,18 @@
 import { z } from "zod";
-import { eq, and, or, desc } from "drizzle-orm";
-import { router, protectedProcedure } from "../trpc.js";
-import { trips, participants } from "@trip/db";
+import { eq, and, desc, asc } from "drizzle-orm";
+import { router, protectedProcedure } from "../trpc";
+import { trips, participants, itineraryItems } from "@trip/db";
 import { createTripSchema, updateTripSchema } from "@trip/shared";
 import { TRPCError } from "@trpc/server";
-import { nanoid } from "../utils/id.js";
+import { nanoid } from "../utils/id";
 
 export const tripsRouter = router({
   list: protectedProcedure.query(async ({ ctx }) => {
-    // Return trips the user owns or participates in
     const owned = await ctx.db
       .select()
       .from(trips)
       .where(eq(trips.ownerId, ctx.user.id))
       .orderBy(desc(trips.startDate));
-
     return owned;
   }),
 
@@ -24,12 +22,8 @@ export const tripsRouter = router({
       const trip = await ctx.db.query.trips.findFirst({
         where: eq(trips.id, input.id),
       });
+      if (!trip) throw new TRPCError({ code: "NOT_FOUND" });
 
-      if (!trip) {
-        throw new TRPCError({ code: "NOT_FOUND" });
-      }
-
-      // Check access: owner or participant
       if (trip.ownerId !== ctx.user.id) {
         const participant = await ctx.db.query.participants.findFirst({
           where: and(
@@ -37,9 +31,7 @@ export const tripsRouter = router({
             eq(participants.email, ctx.user.email)
           ),
         });
-        if (!participant) {
-          throw new TRPCError({ code: "FORBIDDEN" });
-        }
+        if (!participant) throw new TRPCError({ code: "FORBIDDEN" });
       }
 
       return trip;
@@ -53,10 +45,12 @@ export const tripsRouter = router({
         .values({
           id: nanoid(),
           ...input,
+          timezone: input.timezone ?? "UTC",
+          status: input.status ?? "planning",
           ownerId: ctx.user.id,
         })
         .returning();
-      return trip;
+      return trip!;
     }),
 
   update: protectedProcedure
@@ -72,7 +66,7 @@ export const tripsRouter = router({
         .set({ ...input.data, updatedAt: new Date() })
         .where(eq(trips.id, input.id))
         .returning();
-      return updated;
+      return updated!;
     }),
 
   archive: protectedProcedure
@@ -96,5 +90,113 @@ export const tripsRouter = router({
         .returning();
       if (!result.length) throw new TRPCError({ code: "NOT_FOUND" });
       return { success: true };
+    }),
+
+  // Deep-clones a trip and all its itinerary items
+  duplicate: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const original = await ctx.db.query.trips.findFirst({
+        where: and(eq(trips.id, input.id), eq(trips.ownerId, ctx.user.id)),
+      });
+      if (!original) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const newTripId = nanoid();
+
+      // Clone the trip
+      const [newTrip] = await ctx.db
+        .insert(trips)
+        .values({
+          ...original,
+          id: newTripId,
+          name: `${original.name} (Copy)`,
+          status: "planning",
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .returning();
+
+      // Clone all itinerary items (without documents)
+      const items = await ctx.db
+        .select()
+        .from(itineraryItems)
+        .where(eq(itineraryItems.tripId, input.id))
+        .orderBy(asc(itineraryItems.dayIndex), asc(itineraryItems.sortOrder));
+
+      if (items.length > 0) {
+        await ctx.db.insert(itineraryItems).values(
+          items.map((item) => ({
+            ...item,
+            id: nanoid(),
+            tripId: newTripId,
+            source: "manual" as const,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          }))
+        );
+      }
+
+      return newTrip!;
+    }),
+
+  // Merges all itinerary items from sourceId into targetId, then deletes sourceId
+  merge: protectedProcedure
+    .input(z.object({ targetId: z.string(), sourceId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      if (input.targetId === input.sourceId) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Cannot merge a trip with itself",
+        });
+      }
+
+      const [target, source] = await Promise.all([
+        ctx.db.query.trips.findFirst({
+          where: and(eq(trips.id, input.targetId), eq(trips.ownerId, ctx.user.id)),
+        }),
+        ctx.db.query.trips.findFirst({
+          where: and(eq(trips.id, input.sourceId), eq(trips.ownerId, ctx.user.id)),
+        }),
+      ]);
+
+      if (!target || !source) throw new TRPCError({ code: "NOT_FOUND" });
+
+      // Get current max sort order in target
+      const targetItems = await ctx.db
+        .select()
+        .from(itineraryItems)
+        .where(eq(itineraryItems.tripId, input.targetId));
+
+      const maxSortOrder = targetItems.reduce(
+        (max, item) => Math.max(max, item.sortOrder),
+        0
+      );
+
+      // Re-assign source items to target with adjusted sort order
+      const sourceItems = await ctx.db
+        .select()
+        .from(itineraryItems)
+        .where(eq(itineraryItems.tripId, input.sourceId))
+        .orderBy(asc(itineraryItems.dayIndex), asc(itineraryItems.sortOrder));
+
+      if (sourceItems.length > 0) {
+        await ctx.db.insert(itineraryItems).values(
+          sourceItems.map((item, i) => ({
+            ...item,
+            id: nanoid(),
+            tripId: input.targetId,
+            sortOrder: maxSortOrder + i + 1,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          }))
+        );
+      }
+
+      // Delete the source trip (cascade deletes its now-orphaned items)
+      await ctx.db
+        .delete(trips)
+        .where(eq(trips.id, input.sourceId));
+
+      return target;
     }),
 });

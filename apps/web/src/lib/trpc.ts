@@ -6,9 +6,13 @@ import {
   httpBatchLink,
   loggerLink,
 } from "@trpc/client";
+import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@trip/api";
 
 export const trpc = createTRPCReact<AppRouter>();
+
+// Inferred output types (dates serialized to strings by tRPC)
+export type RouterOutputs = inferRouterOutputs<AppRouter>;
 
 export function makeTRPCClient() {
   return createTRPCClient<AppRouter>({

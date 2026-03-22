@@ -9,21 +9,25 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@trpc/client": "^11.1.0",
-    "@trpc/react-query": "^11.1.0",
-    "@trpc/server": "^11.1.0",
+    "@hookform/resolvers": "^5.2.2",
     "@tanstack/react-query": "^5.74.4",
-    "better-auth": "^1.2.7",
-    "next": "15.2.3",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "zod": "^3.24.2",
     "@trip/api": "workspace:*",
     "@trip/db": "workspace:*",
     "@trip/shared": "workspace:*",
-    "lucide-react": "^0.487.0",
+    "@trpc/client": "^11.1.0",
+    "@trpc/react-query": "^11.1.0",
+    "@trpc/server": "^11.1.0",
+    "better-auth": "^1.2.7",
     "clsx": "^2.1.1",
-    "tailwind-merge": "^3.2.0"
+    "date-fns": "^4.1.0",
+    "drizzle-orm": "^0.41.0",
+    "lucide-react": "^0.487.0",
+    "next": "15.2.3",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-hook-form": "^7.71.2",
+    "tailwind-merge": "^3.2.0",
+    "zod": "^3.24.2"
   },
   "devDependencies": {
     "@trip/config": "workspace:*",
@@ -32,7 +36,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "15.2.3",
-    "typescript": "^5.8.2",
-    "tailwindcss": "^4"
+    "tailwindcss": "^4",
+    "typescript": "^5.8.2"
   }
 }
