@@ -24,6 +24,7 @@ export const itemSourceEnum = pgEnum("item_source", [
   "manual",
   "email_import",
   "imap_poll",
+  "gmail_poll",
 ]);
 
 export const itineraryItems = pgTable(

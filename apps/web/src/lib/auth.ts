@@ -21,9 +21,13 @@ export const auth = betterAuth({
         "openid",
         "email",
         "profile",
+        "https://www.googleapis.com/auth/gmail.readonly",
         // Calendar scope added when user enables sync in settings
         // "https://www.googleapis.com/auth/calendar.events",
       ],
+      // offline access required to get a refresh token for background Gmail polling
+      accessType: "offline",
+      prompt: "consent",
     },
   },
   session: {

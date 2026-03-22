@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db, emailImports, itineraryItems, trips } from "@trip/db";
 import { eq, and, gte, lte } from "drizzle-orm";
-import { fetchUnseenEmails } from "@trip/api/lib/imap-client";
+import { fetchUnseenEmails } from "@trip/api/lib/gmail-client";
 import { parseBookingEmail } from "@trip/api/lib/booking-parser";
 import { nanoid } from "@trip/api/utils/id";
 import { parseISO, isWithinInterval, addDays } from "date-fns";
@@ -73,10 +73,10 @@ export async function POST(request: NextRequest) {
 
   let emails;
   try {
-    emails = await fetchUnseenEmails(20);
+    emails = await fetchUnseenEmails(user.id, 20);
   } catch (err: any) {
     return NextResponse.json(
-      { error: `IMAP connection failed: ${err?.message ?? err}` },
+      { error: `Gmail fetch failed: ${err?.message ?? err}` },
       { status: 503 }
     );
   }
@@ -171,7 +171,7 @@ export async function POST(request: NextRequest) {
         notes: null,
         dayIndex,
         sortOrder: 999, // append at end — user can reorder on approval
-        source: "imap_poll",
+        source: "gmail_poll",
         confidenceScore: parsed.confidence,
         startTime: parsed.startTime ?? null,
         endTime: parsed.endTime ?? null,

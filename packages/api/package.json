@@ -7,6 +7,7 @@
     "./lib/storage": "./src/lib/storage.ts",
     "./lib/clamav": "./src/lib/clamav.ts",
     "./lib/imap-client": "./src/lib/imap-client.ts",
+    "./lib/gmail-client": "./src/lib/gmail-client.ts",
     "./lib/booking-parser": "./src/lib/booking-parser.ts",
     "./utils/id": "./src/utils/id.ts"
   },
@@ -18,6 +19,7 @@
     "@trip/shared": "workspace:*",
     "@trpc/server": "^11.1.0",
     "drizzle-orm": "^0.41.0",
+    "googleapis": "^171.4.0",
     "imapflow": "^1.2.16",
     "mailparser": "^3.9.4",
     "zod": "^3.24.2"
