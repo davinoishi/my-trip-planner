@@ -43,7 +43,8 @@ const formSchema = z.object({
   confirmationNumber: z.string().max(50).optional(),
   cabinClass: z
     .enum(["economy", "premium_economy", "business", "first"])
-    .optional(),
+    .optional()
+    .or(z.literal("")),
   terminal: z.string().max(20).optional(),
   seat: z.string().max(20).optional(),
   hotelName: z.string().max(200).optional(),
