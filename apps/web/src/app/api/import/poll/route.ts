@@ -7,6 +7,7 @@ import { parseBookingEmail } from "@trip/api/lib/booking-parser";
 import { findOrCreateTrip } from "@trip/api/lib/trip-matcher";
 import { buildItemsFromParsed } from "@trip/api/lib/booking-to-items";
 import { nanoid } from "@trip/api/utils/id";
+import { rateLimit } from "@trip/api/lib/rate-limit";
 
 export async function POST(request: NextRequest) {
   const session = await auth.api.getSession({ headers: request.headers });
@@ -14,6 +15,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const user = session.user;
+
+  // ── Rate limit: 5 Gmail import polls per user per 10 minutes ─────────────────
+  const rl = await rateLimit(`import-poll:${user.id}`, 5, 600);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: "Too many import requests. Please wait a few minutes." },
+      { status: 429, headers: { "Retry-After": String(rl.resetInSeconds) } }
+    );
+  }
 
   const summary = {
     fetched: 0,

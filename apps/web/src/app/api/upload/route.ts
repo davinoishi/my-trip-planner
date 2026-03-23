@@ -8,6 +8,7 @@ import { parseBookingDocument } from "@trip/api/lib/booking-parser";
 import { findOrCreateTripForRange } from "@trip/api/lib/trip-matcher";
 import { buildItemsFromParsed } from "@trip/api/lib/booking-to-items";
 import { nanoid } from "@trip/api/utils/id";
+import { rateLimit } from "@trip/api/lib/rate-limit";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 
@@ -55,6 +56,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const user = session.user;
+
+  // ── Rate limit: 10 uploads per user per hour (each triggers Claude AI) ───────
+  const rl = await rateLimit(`upload:${user.id}`, 10, 3600);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: "Too many uploads. Please try again later." },
+      { status: 429, headers: { "Retry-After": String(rl.resetInSeconds) } }
+    );
+  }
 
   // ── Parse multipart form ────────────────────────────────────────────────────
   let formData: FormData;

@@ -2,7 +2,20 @@ import { z } from "zod";
 import { eq, and, inArray, sql, ilike, or } from "drizzle-orm";
 import { router, protectedProcedure } from "../trpc";
 import { tags, itemTags, itineraryItems, trips } from "@trip/db";
+import { TRPCError } from "@trpc/server";
 import { nanoid } from "../utils/id";
+
+/** Verify the item belongs to a trip the user owns. */
+async function assertItemAccess(db: any, itemId: string, userId: string) {
+  const row = await db
+    .select({ ownerId: trips.ownerId })
+    .from(itineraryItems)
+    .innerJoin(trips, eq(trips.id, itineraryItems.tripId))
+    .where(eq(itineraryItems.id, itemId))
+    .limit(1);
+  if (!row.length) throw new TRPCError({ code: "NOT_FOUND" });
+  if (row[0].ownerId !== userId) throw new TRPCError({ code: "FORBIDDEN" });
+}
 
 const PRESET_TAGS = [
   "Business Class",
@@ -60,6 +73,7 @@ export const tagsRouter = router({
   setItemTags: protectedProcedure
     .input(z.object({ itemId: z.string(), tagIds: z.array(z.string()) }))
     .mutation(async ({ ctx, input }) => {
+      await assertItemAccess(ctx.db, input.itemId, ctx.user.id);
       await ctx.db.delete(itemTags).where(eq(itemTags.itemId, input.itemId));
       if (input.tagIds.length > 0) {
         await ctx.db.insert(itemTags).values(
@@ -73,6 +87,7 @@ export const tagsRouter = router({
   getItemTags: protectedProcedure
     .input(z.object({ itemId: z.string() }))
     .query(async ({ ctx, input }) => {
+      await assertItemAccess(ctx.db, input.itemId, ctx.user.id);
       const rows = await ctx.db
         .select({ id: tags.id, name: tags.name })
         .from(itemTags)

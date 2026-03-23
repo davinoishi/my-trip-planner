@@ -5,6 +5,7 @@ import { trips, participants, itineraryItems } from "@trip/db";
 import { createTripSchema, updateTripSchema } from "@trip/shared";
 import { TRPCError } from "@trpc/server";
 import { nanoid } from "../utils/id";
+import { rateLimit } from "../lib/rate-limit";
 
 export const tripsRouter = router({
   list: protectedProcedure.query(async ({ ctx }) => {
@@ -40,6 +41,12 @@ export const tripsRouter = router({
   create: protectedProcedure
     .input(createTripSchema)
     .mutation(async ({ ctx, input }) => {
+      // Rate limit: 20 trips created per user per hour
+      const rl = await rateLimit(`trips-create:${ctx.user.id}`, 20, 3600);
+      if (!rl.allowed) {
+        throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Too many trips created. Please try again later." });
+      }
+
       const [trip] = await ctx.db
         .insert(trips)
         .values({
