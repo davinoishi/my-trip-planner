@@ -118,10 +118,54 @@ function parseDMS(query: string): [number, number] | null {
   return null;
 }
 
-async function geocodeQuery(q: string): Promise<[number, number] | null> {
+/**
+ * Detect the ISO 3166-1 alpha-2 country code from address text.
+ * Used to restrict Mapbox results to the correct country.
+ */
+const COUNTRY_HINTS: Array<[RegExp, string]> = [
+  [/\bchina\b|中国|上海|北京|广州|深圳|成都|杭州|武汉|重庆|浦东|黄浦|徐汇|宝山/i, "CN"],
+  [/\bjapan\b|日本|東京|大阪|京都|osaka|tokyo|kyoto/i, "JP"],
+  [/\bsouth korea\b|\bkorea\b|한국|서울|부산|seoul|busan/i, "KR"],
+  [/\btaiwan\b|台湾|台灣|台北|taipei/i, "TW"],
+  [/\bfrance\b|paris|lyon|marseille/i, "FR"],
+  [/\bgermany\b|deutschland|berlin|munich|münchen|frankfurt/i, "DE"],
+  [/\bitalyb\b|italia|rome|milan|roma|milano/i, "IT"],
+  [/\bspain\b|españa|madrid|barcelona/i, "ES"],
+  [/\b(uk|united kingdom|england|britain)\b|london|manchester|edinburgh/i, "GB"],
+];
+
+function detectCountry(address: string): string | null {
+  for (const [pattern, code] of COUNTRY_HINTS) {
+    if (pattern.test(address)) return code;
+  }
+  return null;
+}
+
+/**
+ * Clean an address string before geocoding:
+ * - Strip postal code labels in any language (邮政编码, ZIP, Postal Code, etc.)
+ * - Strip parenthetical street qualifiers like (E-1), (W), (Section 2)
+ */
+function cleanAddress(raw: string): string {
+  return raw
+    .replace(/\b(postal\s*code|zip\s*code?|postcode|邮政编码|郵政編碼|〒)\s*:?\s*[\d\s-]{3,10}/gi, "")
+    .replace(/\s*\([^)]{1,40}\)/g, "")
+    .replace(/,\s*,/g, ",")
+    .replace(/\s{2,}/g, " ")
+    .trim()
+    .replace(/,\s*$/, "");
+}
+
+async function geocodeQuery(q: string, country?: string): Promise<[number, number] | null> {
   try {
+    const params = new URLSearchParams({
+      access_token: MAPBOX_TOKEN,
+      limit: "1",
+      types: "address,place,poi",
+    });
+    if (country) params.set("country", country);
     const res = await fetch(
-      `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(q)}.json?access_token=${MAPBOX_TOKEN}&limit=1&types=address,place,poi`
+      `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(q)}.json?${params}`
     );
     const data = await res.json();
     const center = data.features?.[0]?.center;
@@ -136,14 +180,17 @@ async function geocode(query: string): Promise<[number, number] | null> {
   const direct = parseLngLat(query) ?? parseDMS(query);
   if (direct) return direct;
 
-  // Issue #3: try full query first, then fall back to the address portion alone
-  const result = await geocodeQuery(query);
+  const cleaned = cleanAddress(query);
+  const country = detectCountry(query) ?? undefined;
+
+  // Try full cleaned query (with country restriction if detected)
+  const result = await geocodeQuery(cleaned, country);
   if (result) return result;
 
-  // Fallback: strip leading non-address tokens (e.g. venue name before the comma)
-  const parts = query.split(",").map((s) => s.trim()).filter(Boolean);
+  // Fallback: strip leading venue/shop name before the first comma
+  const parts = cleaned.split(",").map((s) => s.trim()).filter(Boolean);
   if (parts.length > 1) {
-    return geocodeQuery(parts.slice(1).join(", "));
+    return geocodeQuery(parts.slice(1).join(", "), country);
   }
   return null;
 }
