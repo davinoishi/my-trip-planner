@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Map, { Marker, Popup, NavigationControl, Source, Layer } from "react-map-gl/mapbox";
-import type { LayerProps } from "react-map-gl/mapbox";
+import type { LayerProps, MapRef } from "react-map-gl/mapbox";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { Plane, Hotel, Car, Train, Zap, ArrowRight, StickyNote } from "lucide-react";
 import type { RouterOutputs } from "@/lib/trpc";
@@ -90,10 +90,20 @@ function greatCircleCoords(
   return out;
 }
 
-async function geocode(query: string): Promise<[number, number] | null> {
+/** Detect a plain "lat, lng" coordinate string and return [lng, lat] for Mapbox. */
+function parseLngLat(query: string): [number, number] | null {
+  const match = query.trim().match(/^(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)$/);
+  if (!match) return null;
+  const lat = parseFloat(match[1]!);
+  const lng = parseFloat(match[2]!);
+  if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) return [lng, lat];
+  return null;
+}
+
+async function geocodeQuery(q: string): Promise<[number, number] | null> {
   try {
     const res = await fetch(
-      `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${MAPBOX_TOKEN}&limit=1`
+      `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(q)}.json?access_token=${MAPBOX_TOKEN}&limit=1&types=address,place,poi`
     );
     const data = await res.json();
     const center = data.features?.[0]?.center;
@@ -101,6 +111,23 @@ async function geocode(query: string): Promise<[number, number] | null> {
   } catch {
     return null;
   }
+}
+
+async function geocode(query: string): Promise<[number, number] | null> {
+  // Issue #2: short-circuit if query is a lat/lng pair
+  const direct = parseLngLat(query);
+  if (direct) return direct;
+
+  // Issue #3: try full query first, then fall back to the address portion alone
+  const result = await geocodeQuery(query);
+  if (result) return result;
+
+  // Fallback: strip leading non-address tokens (e.g. venue name before the comma)
+  const parts = query.split(",").map((s) => s.trim()).filter(Boolean);
+  if (parts.length > 1) {
+    return geocodeQuery(parts.slice(1).join(", "));
+  }
+  return null;
 }
 
 function getLocationQuery(item: ApiItineraryItem): string | null {
@@ -130,19 +157,6 @@ function getFlightAirports(item: ApiItineraryItem): [string, string] | null {
   return null;
 }
 
-function calcZoom(pins: PinnedItem[]): number {
-  if (pins.length <= 1) return 12;
-  const lngs = pins.map((p) => p.lng);
-  const lats = pins.map((p) => p.lat);
-  const spread = Math.max(
-    Math.max(...lngs) - Math.min(...lngs),
-    Math.max(...lats) - Math.min(...lats)
-  );
-  if (spread < 0.5) return 11;
-  if (spread < 5)   return 8;
-  if (spread < 20)  return 5;
-  return 3;
-}
 
 const routeLayerStyle: LayerProps = {
   id: "route-lines",
@@ -154,16 +168,25 @@ const routeLayerStyle: LayerProps = {
   },
 };
 
+/** Compute a synchronous initial center from the first resolvable airport in the items. */
+function getInitialViewState(items: ApiItineraryItem[]) {
+  for (const item of items) {
+    if (item.isDraft) continue;
+    const airports = getFlightAirports(item);
+    if (airports) {
+      const coords = getAirportCoords(airports[0]) ?? getAirportCoords(airports[1]);
+      if (coords) return { longitude: coords[0], latitude: coords[1], zoom: 4 };
+    }
+  }
+  return { longitude: 0, latitude: 20, zoom: 1.5 };
+}
+
 export function TripMap({ items }: { items: ApiItineraryItem[] }) {
+  const mapRef = useRef<MapRef>(null);
   const [pins, setPins] = useState<PinnedItem[]>([]);
   const [routes, setRoutes] = useState<FlightRoute[]>([]);
   const [selected, setSelected] = useState<PinnedItem | null>(null);
   const [loading, setLoading] = useState(true);
-  const [viewState, setViewState] = useState({
-    longitude: 0,
-    latitude: 20,
-    zoom: 1.5,
-  });
 
   useEffect(() => {
     let cancelled = false;
@@ -202,14 +225,22 @@ export function TripMap({ items }: { items: ApiItineraryItem[] }) {
       if (!cancelled) {
         setPins(newPins);
         setRoutes(newRoutes);
+
+        // Issue #1: fly/fit to pins after geocoding instead of relying on initial viewState
         if (newPins.length > 0) {
-          const lngs = newPins.map((p) => p.lng);
-          const lats = newPins.map((p) => p.lat);
-          setViewState({
-            longitude: (Math.min(...lngs) + Math.max(...lngs)) / 2,
-            latitude:  (Math.min(...lats) + Math.max(...lats)) / 2,
-            zoom: calcZoom(newPins),
-          });
+          const map = mapRef.current;
+          if (map) {
+            const lngs = newPins.map((p) => p.lng);
+            const lats = newPins.map((p) => p.lat);
+            if (newPins.length === 1) {
+              map.flyTo({ center: [newPins[0]!.lng, newPins[0]!.lat], zoom: 12, duration: 800 });
+            } else {
+              map.fitBounds(
+                [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
+                { padding: 80, maxZoom: 12, duration: 800 }
+              );
+            }
+          }
         }
         setLoading(false);
       }
@@ -234,8 +265,8 @@ export function TripMap({ items }: { items: ApiItineraryItem[] }) {
   return (
     <div className="relative w-full rounded-2xl overflow-hidden border border-gray-100" style={{ height: 600 }}>
       <Map
-        {...viewState}
-        onMove={(e: { viewState: typeof viewState }) => setViewState(e.viewState)}
+        ref={mapRef}
+        initialViewState={getInitialViewState(items)}
         style={{ width: "100%", height: "100%" }}
         mapStyle="mapbox://styles/mapbox/light-v11"
         mapboxAccessToken={MAPBOX_TOKEN}
