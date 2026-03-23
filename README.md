@@ -23,11 +23,13 @@ TripIt is a great product, but it's owned by a travel agency, and every itinerar
 - **Travel stats** — total trips, days traveled, distance flown, countries and cities visited
 - **Google sign-in** — authentication via your Google account (no passwords to manage)
 
+### In progress
+- **iCal calendar feed** — subscribe to your trip itinerary from any calendar app (Google Calendar, Apple Calendar, Outlook, etc.) using a private token-based feed URL; built but not fully tested
+
 ### Not yet available (coming soon)
 - **Trip sharing / collaboration** — invite others to view or edit a trip
 - **Notifications & reminders** — alerts before upcoming trips or departures
 - **Travel notes** — attach freeform notes to trips or individual items
-- **Google Calendar sync** — push your itinerary to Google Calendar
 
 ---
 
@@ -280,11 +282,10 @@ The app will be available at [http://localhost:3000](http://localhost:3000).
 | 10-day weather forecast | ✅ Available |
 | Travel stats dashboard | ✅ Available |
 | Google sign-in | ✅ Available |
+| iCal calendar feed (subscribe in any calendar app) | 🧪 Built, not fully tested |
 | Trip sharing / collaboration | 🔲 Planned |
 | Notifications & reminders | 🔲 Planned |
 | Travel notes | 🔲 Planned |
-| Google Calendar sync | 🔲 Planned |
-| Apple / Outlook Calendar sync | 🔲 Planned |
 
 ---
 
