@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { db, trips, itineraryItems } from "@trip/db";
-import { eq } from "drizzle-orm";
+import { db, trips, itineraryItems, participants } from "@trip/db";
+import { eq, or, and } from "drizzle-orm";
 import { AIRPORT_COORDS, AIRPORT_COUNTRIES, AIRPORT_CITIES, COUNTRY_NAMES } from "@/lib/airports";
 
 // ── Haversine distance (km) ────────────────────────────────────────────────────
@@ -128,26 +128,47 @@ export async function GET(req: NextRequest) {
   const yearParam = searchParams.get("year");
   const year = yearParam ? parseInt(yearParam) : null;
 
-  const [allTrips, allItems] = await Promise.all([
-    db.select().from(trips).where(eq(trips.ownerId, session.user.id)),
-    db
-      .select()
-      .from(itineraryItems)
-      .where(eq(itineraryItems.isDraft, 0)),
-  ]);
+  // Include trips the user owns + trips they're marked "going on" as a participant
+  const goingOnTripIds = await db
+    .select({ tripId: participants.tripId })
+    .from(participants)
+    .where(
+      and(
+        or(
+          eq(participants.userId, session.user.id),
+          eq(participants.email, session.user.email)
+        ),
+        eq(participants.isGoingOnTrip, 1)
+      )
+    );
 
-  // Filter items to only those belonging to the user's trips
-  const tripIds = new Set(allTrips.map((t) => t.id));
+  const sharedTripIdSet = new Set(goingOnTripIds.map((r) => r.tripId));
+
+  const allTrips = await db.select().from(trips).where(eq(trips.ownerId, session.user.id));
+  const sharedTrips = sharedTripIdSet.size > 0
+    ? await db.select().from(trips).where(
+        or(...[...sharedTripIdSet].map((id) => eq(trips.id, id)))
+      )
+    : [];
+
+  // Merge without duplicates (owner might also be a participant on their own trip)
+  const tripMap = new Map([...allTrips, ...sharedTrips].map((t) => [t.id, t]));
+  const mergedTrips = [...tripMap.values()];
+
+  const allItems = await db.select().from(itineraryItems).where(eq(itineraryItems.isDraft, 0));
+
+  // Filter items to only those belonging to included trips
+  const tripIds = new Set(mergedTrips.map((t) => t.id));
   const userItems = allItems.filter((i) => tripIds.has(i.tripId));
 
   // Get available years for the filter dropdown
   const years = [
     ...new Set(
-      allTrips.map((t) => new Date(t.startDate + "T00:00:00Z").getUTCFullYear())
+      mergedTrips.map((t) => new Date(t.startDate + "T00:00:00Z").getUTCFullYear())
     ),
   ].sort((a, b) => b - a);
 
-  const stats = computeStats(allTrips, userItems, year);
+  const stats = computeStats(mergedTrips, userItems, year);
 
   return NextResponse.json({ ...stats, years });
 }

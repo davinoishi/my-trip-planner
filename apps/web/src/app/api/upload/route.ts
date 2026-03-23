@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { db, documents, trips, participants, itineraryItems } from "@trip/db";
-import { eq, and } from "drizzle-orm";
+import { db, documents, itineraryItems } from "@trip/db";
+import { eq } from "drizzle-orm";
 import { uploadFile } from "@trip/api/lib/storage";
 import { scanBuffer } from "@trip/api/lib/clamav";
 import { validateFileSignature } from "@trip/api/lib/file-signature";
+import { resolveTripAccess } from "@trip/api/lib/access";
 import { parseBookingDocument } from "@trip/api/lib/booking-parser";
 import { findOrCreateTripForRange } from "@trip/api/lib/trip-matcher";
 import { buildItemsFromParsed } from "@trip/api/lib/booking-to-items";
@@ -42,13 +43,8 @@ async function assertTripAccess(
   userEmail: string,
   tripId: string
 ): Promise<boolean> {
-  const trip = await db.query.trips.findFirst({ where: eq(trips.id, tripId) });
-  if (!trip) return false;
-  if (trip.ownerId === userId) return true;
-  const participant = await db.query.participants.findFirst({
-    where: and(eq(participants.tripId, tripId), eq(participants.email, userEmail)),
-  });
-  return !!participant && participant.role !== "viewer";
+  const access = await resolveTripAccess(db, tripId, userId, userEmail);
+  return access.canWrite;
 }
 
 export async function POST(request: NextRequest) {

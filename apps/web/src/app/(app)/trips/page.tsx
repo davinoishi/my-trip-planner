@@ -4,7 +4,7 @@ import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Plus, Plane, Calendar, MoreHorizontal, Copy, Archive, Trash2, GitMerge } from "lucide-react";
+import { Plus, Plane, Calendar, MoreHorizontal, Copy, Archive, Trash2, GitMerge, Users } from "lucide-react";
 import { StatusBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu } from "@/components/ui/dropdown-menu";
@@ -298,7 +298,7 @@ function TripCard({
   const emoji = tripEmoji(trip.name, trip.description);
   const duration = tripDuration(trip.startDate, trip.endDate);
 
-  const menuItems = [
+  const menuItems = trip.isSharedToMe ? [] : [
     { label: "Duplicate",    icon: <Copy className="w-4 h-4" />,     onClick: onDuplicate },
     { label: "Merge into…",  icon: <GitMerge className="w-4 h-4" />, onClick: onMerge },
     { label: "Archive",      icon: <Archive className="w-4 h-4" />,  onClick: onArchive, disabled: trip.status === "archived" },
@@ -308,21 +308,31 @@ function TripCard({
   return (
     <div className="group relative bg-white border border-gray-100 rounded-2xl overflow-hidden hover:shadow-lg hover:border-transparent transition-all duration-200">
       {/* Kebab menu — rendered outside Link to avoid nested interactive elements */}
-      <div className="absolute top-3 right-3 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
-        <DropdownMenu
-          trigger={
-            <button className="p-1.5 rounded-lg text-white/80 hover:text-white hover:bg-black/20 transition-colors">
-              <MoreHorizontal className="w-4 h-4" />
-            </button>
-          }
-          items={menuItems}
-        />
-      </div>
+      {menuItems.length > 0 && (
+        <div className="absolute top-3 right-3 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+          <DropdownMenu
+            trigger={
+              <button className="p-1.5 rounded-lg text-white/80 hover:text-white hover:bg-black/20 transition-colors">
+                <MoreHorizontal className="w-4 h-4" />
+              </button>
+            }
+            items={menuItems}
+          />
+        </div>
+      )}
 
       <Link href={`/trips/${trip.id}`} className="block">
         {/* Gradient banner */}
         <div className={`h-24 bg-gradient-to-br ${gradient} relative flex items-center justify-center`}>
           <span className="text-4xl drop-shadow-sm select-none">{emoji}</span>
+          {trip.isSharedToMe && (
+            <div className="absolute top-2 left-3">
+              <span className="inline-flex items-center gap-1 bg-black/25 text-white/90 text-[10px] font-medium px-2 py-0.5 rounded-full">
+                <Users className="w-3 h-3" />
+                Shared
+              </span>
+            </div>
+          )}
           <div className="absolute bottom-2 right-3">
             <StatusBadge status={trip.status} />
           </div>

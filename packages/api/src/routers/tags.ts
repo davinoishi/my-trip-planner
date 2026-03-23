@@ -4,17 +4,22 @@ import { router, protectedProcedure } from "../trpc";
 import { tags, itemTags, itineraryItems, trips } from "@trip/db";
 import { TRPCError } from "@trpc/server";
 import { nanoid } from "../utils/id";
+import { assertAccess } from "../lib/access";
 
-/** Verify the item belongs to a trip the user owns. */
-async function assertItemAccess(db: any, itemId: string, userId: string) {
+/** Verify the item belongs to a trip the user can write to. */
+async function assertItemAccess(
+  db: any,
+  itemId: string,
+  userId: string,
+  userEmail: string
+) {
   const row = await db
-    .select({ ownerId: trips.ownerId })
+    .select({ tripId: itineraryItems.tripId })
     .from(itineraryItems)
-    .innerJoin(trips, eq(trips.id, itineraryItems.tripId))
     .where(eq(itineraryItems.id, itemId))
     .limit(1);
   if (!row.length) throw new TRPCError({ code: "NOT_FOUND" });
-  if (row[0].ownerId !== userId) throw new TRPCError({ code: "FORBIDDEN" });
+  await assertAccess(db, row[0].tripId, userId, userEmail, true);
 }
 
 const PRESET_TAGS = [
@@ -73,7 +78,7 @@ export const tagsRouter = router({
   setItemTags: protectedProcedure
     .input(z.object({ itemId: z.string(), tagIds: z.array(z.string()) }))
     .mutation(async ({ ctx, input }) => {
-      await assertItemAccess(ctx.db, input.itemId, ctx.user.id);
+      await assertItemAccess(ctx.db, input.itemId, ctx.user.id, ctx.user.email);
       await ctx.db.delete(itemTags).where(eq(itemTags.itemId, input.itemId));
       if (input.tagIds.length > 0) {
         await ctx.db.insert(itemTags).values(
@@ -87,7 +92,7 @@ export const tagsRouter = router({
   getItemTags: protectedProcedure
     .input(z.object({ itemId: z.string() }))
     .query(async ({ ctx, input }) => {
-      await assertItemAccess(ctx.db, input.itemId, ctx.user.id);
+      await assertItemAccess(ctx.db, input.itemId, ctx.user.id, ctx.user.email);
       const rows = await ctx.db
         .select({ id: tags.id, name: tags.name })
         .from(itemTags)

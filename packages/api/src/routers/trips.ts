@@ -1,42 +1,74 @@
 import { z } from "zod";
-import { eq, and, desc, asc } from "drizzle-orm";
+import { eq, and, desc, asc, or, exists } from "drizzle-orm";
 import { router, protectedProcedure } from "../trpc";
-import { trips, participants, itineraryItems } from "@trip/db";
+import { trips, participants, accountShares, itineraryItems } from "@trip/db";
 import { createTripSchema, updateTripSchema } from "@trip/shared";
 import { TRPCError } from "@trpc/server";
 import { nanoid } from "../utils/id";
 import { rateLimit } from "../lib/rate-limit";
 import { writeAuditLog } from "../lib/audit";
+import { resolveTripAccess, activatePendingShares } from "../lib/access";
 
 export const tripsRouter = router({
   list: protectedProcedure.query(async ({ ctx }) => {
-    const owned = await ctx.db
+    // Lazily activate any pending shares for this user on each list call
+    void activatePendingShares(ctx.db, ctx.user.id, ctx.user.email);
+
+    // All trips: owned + shared via direct participant entry + shared via account share
+    const allTrips = await ctx.db
       .select()
       .from(trips)
-      .where(eq(trips.ownerId, ctx.user.id))
+      .where(
+        or(
+          eq(trips.ownerId, ctx.user.id),
+          exists(
+            ctx.db
+              .select()
+              .from(participants)
+              .where(
+                and(
+                  eq(participants.tripId, trips.id),
+                  or(
+                    eq(participants.userId, ctx.user.id),
+                    eq(participants.email, ctx.user.email)
+                  )
+                )
+              )
+          ),
+          exists(
+            ctx.db
+              .select()
+              .from(accountShares)
+              .where(
+                and(
+                  eq(accountShares.ownerId, trips.ownerId),
+                  or(
+                    eq(accountShares.sharedWithUserId, ctx.user.id),
+                    eq(accountShares.sharedWithEmail, ctx.user.email)
+                  )
+                )
+              )
+          )
+        )
+      )
       .orderBy(desc(trips.startDate));
-    return owned;
+
+    // Tag each trip with whether it's shared to this user (not owned)
+    return allTrips.map((t) => ({
+      ...t,
+      isSharedToMe: t.ownerId !== ctx.user.id,
+    }));
   }),
 
   getById: protectedProcedure
     .input(z.object({ id: z.string() }))
     .query(async ({ ctx, input }) => {
-      const trip = await ctx.db.query.trips.findFirst({
-        where: eq(trips.id, input.id),
-      });
+      const access = await resolveTripAccess(ctx.db, input.id, ctx.user.id, ctx.user.email);
+      if (!access.canRead) throw new TRPCError({ code: "FORBIDDEN" });
+
+      const trip = await ctx.db.query.trips.findFirst({ where: eq(trips.id, input.id) });
       if (!trip) throw new TRPCError({ code: "NOT_FOUND" });
-
-      if (trip.ownerId !== ctx.user.id) {
-        const participant = await ctx.db.query.participants.findFirst({
-          where: and(
-            eq(participants.tripId, input.id),
-            eq(participants.email, ctx.user.email)
-          ),
-        });
-        if (!participant) throw new TRPCError({ code: "FORBIDDEN" });
-      }
-
-      return trip;
+      return { ...trip, isSharedToMe: !access.isOwner, canWrite: access.canWrite };
     }),
 
   create: protectedProcedure

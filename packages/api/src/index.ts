@@ -6,6 +6,7 @@ import { documentsRouter } from "./routers/documents";
 import { importsRouter } from "./routers/imports";
 import { packingListRouter } from "./routers/packing-list";
 import { tagsRouter } from "./routers/tags";
+import { sharesRouter } from "./routers/shares";
 
 export const appRouter = router({
   users: usersRouter,
@@ -15,6 +16,7 @@ export const appRouter = router({
   imports: importsRouter,
   packingList: packingListRouter,
   tags: tagsRouter,
+  shares: sharesRouter,
 });
 
 export type AppRouter = typeof appRouter;

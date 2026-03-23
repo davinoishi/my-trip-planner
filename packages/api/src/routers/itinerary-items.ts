@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { eq, and, asc, inArray, sql, getTableColumns } from "drizzle-orm";
 import { router, protectedProcedure } from "../trpc";
-import { itineraryItems, trips, participants, tags, itemTags } from "@trip/db";
+import { itineraryItems, tags, itemTags } from "@trip/db";
 import {
   createItineraryItemSchema,
   updateItineraryItemSchema,
@@ -9,35 +9,7 @@ import {
 } from "@trip/shared";
 import { TRPCError } from "@trpc/server";
 import { nanoid } from "../utils/id";
-
-// ── Helpers ────────────────────────────────────────────────────────────────────
-
-/** Returns the trip if the user is an owner, editor, or viewer — throws otherwise. */
-async function assertTripAccess(
-  ctx: { db: any; user: { id: string; email: string } },
-  tripId: string,
-  requireEdit = false
-) {
-  const trip = await ctx.db.query.trips.findFirst({
-    where: eq(trips.id, tripId),
-  });
-  if (!trip) throw new TRPCError({ code: "NOT_FOUND" });
-
-  if (trip.ownerId === ctx.user.id) return trip;
-
-  const participant = await ctx.db.query.participants.findFirst({
-    where: and(
-      eq(participants.tripId, tripId),
-      eq(participants.email, ctx.user.email)
-    ),
-  });
-
-  if (!participant) throw new TRPCError({ code: "FORBIDDEN" });
-  if (requireEdit && participant.role === "viewer")
-    throw new TRPCError({ code: "FORBIDDEN" });
-
-  return trip;
-}
+import { assertAccess } from "../lib/access";
 
 // ── Router ─────────────────────────────────────────────────────────────────────
 export const itineraryItemsRouter = router({
@@ -45,7 +17,7 @@ export const itineraryItemsRouter = router({
   list: protectedProcedure
     .input(z.object({ tripId: z.string() }))
     .query(async ({ ctx, input }) => {
-      await assertTripAccess(ctx, input.tripId);
+      await assertAccess(ctx.db, input.tripId, ctx.user.id, ctx.user.email);
       const rows = await ctx.db
         .select({
           ...getTableColumns(itineraryItems),
@@ -73,7 +45,7 @@ export const itineraryItemsRouter = router({
   create: protectedProcedure
     .input(createItineraryItemSchema)
     .mutation(async ({ ctx, input }) => {
-      await assertTripAccess(ctx, input.tripId, true);
+      await assertAccess(ctx.db, input.tripId, ctx.user.id, ctx.user.email, true);
 
       // Auto sort order: append after existing items on the same day
       const dayItems = await ctx.db
@@ -150,7 +122,7 @@ export const itineraryItemsRouter = router({
         where: eq(itineraryItems.id, input.id),
       });
       if (!item) throw new TRPCError({ code: "NOT_FOUND" });
-      await assertTripAccess(ctx, item.tripId, true);
+      await assertAccess(ctx.db, item.tripId, ctx.user.id, ctx.user.email, true);
 
       await ctx.db
         .delete(itineraryItems)
@@ -162,7 +134,7 @@ export const itineraryItemsRouter = router({
   reorder: protectedProcedure
     .input(reorderItemsSchema)
     .mutation(async ({ ctx, input }) => {
-      await assertTripAccess(ctx, input.tripId, true);
+      await assertAccess(ctx.db, input.tripId, ctx.user.id, ctx.user.email, true);
 
       // Verify all items belong to this trip
       const ids = input.items.map((i) => i.id);

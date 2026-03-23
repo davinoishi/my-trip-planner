@@ -14,7 +14,8 @@
     "./utils/id": "./src/utils/id.ts",
     "./lib/rate-limit": "./src/lib/rate-limit.ts",
     "./lib/file-signature": "./src/lib/file-signature.ts",
-    "./lib/audit": "./src/lib/audit.ts"
+    "./lib/audit": "./src/lib/audit.ts",
+    "./lib/access": "./src/lib/access.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.80.0",
