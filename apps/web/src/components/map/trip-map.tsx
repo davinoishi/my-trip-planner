@@ -145,11 +145,14 @@ function detectCountry(address: string): string | null {
  * Clean an address before geocoding:
  * - Strip postal code labels (邮政编码, ZIP, Postal Code, …)
  *   Note: no \b before CJK — \b only works for ASCII word boundaries
- * - Strip parenthetical qualifiers like (E-1), (W), (Section 2)
+ * - Expand single-letter direction codes in parens: (M)→Middle, (E)→East, etc.
+ * - Strip remaining parenthetical qualifiers like (E-1), (Section 2)
  */
 function cleanAddress(raw: string): string {
+  const DIRECTION: Record<string, string> = { E: "East", W: "West", N: "North", S: "South", M: "Middle" };
   return raw
     .replace(/(postal\s*code|zip\s*code?|postcode|邮政编码|郵政編碼|〒)\s*:?\s*[\d\s-]{3,10}/gi, "")
+    .replace(/\s*\(([EWNSM])\)/gi, (_, d: string) => " " + (DIRECTION[d.toUpperCase()] ?? d))
     .replace(/\s*\([^)]{1,40}\)/g, "")
     .replace(/,\s*,/g, ",")
     .replace(/\s{2,}/g, " ")
@@ -172,25 +175,46 @@ function simplifyAddress(cleaned: string): string | null {
 }
 
 /**
- * For Chinese addresses without commas: strip building/mall names
- * and floor indicators that follow the street number, since these
- * are too granular for geocoding (e.g. "号上海国金中心商场1层" → "号").
+ * For Chinese addresses without commas, build progressively simpler
+ * fallback queries by stripping building names, normalizing spaced
+ * house numbers, and ultimately falling back to street or district alone.
  */
-function stripChineseBuildingSuffix(s: string): string | null {
-  const stripped = s
+function buildChineseFallbacks(cleaned: string): string[] {
+  const fallbacks: string[] = [];
+
+  // Strip building/mall/shop suffix after street number
+  // "世纪大道 8 8号上海国金中心商场1层" → "世纪大道 8 8号"
+  const withoutBuilding = cleaned
     .replace(/(号)\s*[\u4e00-\u9fff][\u4e00-\u9fff\w]*(商场|广场|中心|大厦|大楼|购物|酒店|饭店)\S*/g, "$1")
     .replace(/\d+\s*[层楼]/g, "")
     .trim();
-  return stripped !== s ? stripped : null;
+  if (withoutBuilding !== cleaned) fallbacks.push(withoutBuilding);
+
+  // Normalize spaced house numbers: "8 8号" → "88号"
+  const normalized = (withoutBuilding !== cleaned ? withoutBuilding : cleaned)
+    .replace(/(\d)\s+(\d+号)/g, "$1$2");
+  if (normalized !== (withoutBuilding !== cleaned ? withoutBuilding : cleaned)) fallbacks.push(normalized);
+
+  // Strip house number entirely: "世纪大道 88号" → "世纪大道"
+  // Gives just the street name which Mapbox reliably geocodes
+  const noNumber = normalized.replace(/\s*\d+号/, "").replace(/\s{2,}/g, " ").trim();
+  if (noNumber && noNumber !== normalized) fallbacks.push(noNumber);
+
+  // Last resort: just city + district (first 2 space-separated tokens)
+  const tokens = cleaned.split(/\s+/);
+  if (tokens.length > 2) fallbacks.push(tokens.slice(0, 2).join(" "));
+
+  return [...new Set(fallbacks)];
 }
 
-async function geocodeQuery(q: string, country?: string): Promise<[number, number] | null> {
+/**
+ * broad=true removes the types restriction so neighborhood/locality
+ * results (e.g. "Lujiazui") are also returned — used for fallback queries.
+ */
+async function geocodeQuery(q: string, country?: string, broad = false): Promise<[number, number] | null> {
   try {
-    const params = new URLSearchParams({
-      access_token: MAPBOX_TOKEN,
-      limit: "1",
-      types: "address,place,poi",
-    });
+    const params = new URLSearchParams({ access_token: MAPBOX_TOKEN, limit: "1" });
+    if (!broad) params.set("types", "address,place,poi");
     if (country) params.set("country", country);
     const res = await fetch(
       `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(q)}.json?${params}`
@@ -204,38 +228,46 @@ async function geocodeQuery(q: string, country?: string): Promise<[number, numbe
 }
 
 async function geocode(query: string): Promise<[number, number] | null> {
-  // Short-circuit for coordinate strings — no API call needed
   const direct = parseLngLat(query) ?? parseDMS(query);
   if (direct) return direct;
 
   const cleaned = cleanAddress(query);
   const country = detectCountry(query) ?? undefined;
+  const hasCJK = /[\u4e00-\u9fff]/.test(cleaned);
 
-  // For multi-part addresses, try simplified (street + city + country) FIRST —
-  // intermediate district names like "Huangpu" exist in multiple cities and
-  // cause wrong-city matches even when country is restricted.
+  if (hasCJK && !cleaned.includes(",")) {
+    // CJK space-delimited: try progressively simpler forms
+    for (const candidate of [cleaned, ...buildChineseFallbacks(cleaned)]) {
+      // First attempts use types restriction; final fallbacks (city/district only) go broad
+      const broad = candidate.split(/\s+/).length <= 2;
+      const r = await geocodeQuery(candidate, country, broad);
+      if (r) return r;
+    }
+    return null;
+  }
+
+  // Comma-delimited (Western format):
+  // 1. Simplified (street + city + country) — avoids ambiguous middle districts
   const simplified = simplifyAddress(cleaned);
   if (simplified) {
     const r = await geocodeQuery(simplified, country);
     if (r) return r;
+    // Without street number (e.g. "Yincheng Rd" instead of "501 Yincheng Rd")
+    const noNum = simplified.replace(/^\d[\d-]*\s+/, "");
+    if (noNum !== simplified) {
+      const r2 = await geocodeQuery(noNum, country);
+      if (r2) return r2;
+    }
   }
 
-  // Try full cleaned address
+  // 2. Full cleaned address
   const result = await geocodeQuery(cleaned, country);
   if (result) return result;
 
-  // For Chinese addresses: strip building/floor suffix (e.g. "国金中心商场1层")
-  // that follows the street number and makes the query too specific
-  const withoutBuilding = stripChineseBuildingSuffix(cleaned);
-  if (withoutBuilding) {
-    const r = await geocodeQuery(withoutBuilding, country);
-    if (r) return r;
-  }
-
-  // Last resort: drop the first component (venue/shop name)
-  const parts = (withoutBuilding ?? cleaned).split(",").map((s) => s.trim()).filter(Boolean);
+  // 3. Drop street — use area/neighborhood (broad so locality types match)
+  const parts = cleaned.split(",").map((s) => s.trim()).filter(Boolean);
   if (parts.length > 1) {
-    return geocodeQuery(parts.slice(1).join(", "), country);
+    return geocodeQuery(parts.slice(1).join(", "), country, true);
   }
   return null;
 }
