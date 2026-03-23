@@ -125,7 +125,7 @@ function HotelFields({ register, errors }: any) {
       <Field label="Hotel Name" error={errors.hotelName?.message} className="col-span-2">
         <Input placeholder="Hilton Tokyo" {...register("hotelName")} />
       </Field>
-      <Field label="Address" error={errors.address?.message} className="col-span-2">
+      <Field label="Address" error={errors.address?.message} hint='Street address, place name, decimal coords (35.676, 139.650), or DMS (31° 14′ 24″ N  121° 29′ 44″ E)' className="col-span-2">
         <Input placeholder="123 Main St, Tokyo" {...register("address")} />
       </Field>
       <Field label="Check-in Time" error={errors.checkInTime?.message}>
@@ -221,7 +221,7 @@ function ActivityFields({ register, errors }: any) {
       <Field label="Venue" error={errors.venue?.message} className="col-span-2">
         <Input placeholder="teamLab Planets" {...register("venue")} />
       </Field>
-      <Field label="Address" error={errors.address?.message} className="col-span-2">
+      <Field label="Address" error={errors.address?.message} hint='Street address, place name, decimal coords (35.676, 139.650), or DMS (31° 14′ 24″ N  121° 29′ 44″ E)' className="col-span-2">
         <Input placeholder="6 Chome-1-1 Toyosu, Koto City" {...register("address")} />
       </Field>
       <Field label="Start Time" error={errors.startTime?.message}>

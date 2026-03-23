@@ -90,12 +90,30 @@ function greatCircleCoords(
   return out;
 }
 
-/** Detect a plain "lat, lng" coordinate string and return [lng, lat] for Mapbox. */
+/** Detect a plain "lat, lng" decimal coordinate string and return [lng, lat] for Mapbox. */
 function parseLngLat(query: string): [number, number] | null {
   const match = query.trim().match(/^(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)$/);
   if (!match) return null;
   const lat = parseFloat(match[1]!);
   const lng = parseFloat(match[2]!);
+  if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) return [lng, lat];
+  return null;
+}
+
+/**
+ * Parse DMS (degrees/minutes/seconds) coordinate strings.
+ * Handles formats like:
+ *   31° 14' 24.19" N    121° 29' 43.8" E
+ *   31°14'24.19"N 121°29'43.8"E
+ */
+function parseDMS(query: string): [number, number] | null {
+  const dms = /(\d+)\s*[°d]\s*(\d+)\s*['''′]\s*(\d+(?:[.,]\d+)?)\s*["""″]?\s*([NS])\s+(\d+)\s*[°d]\s*(\d+)\s*['''′]\s*(\d+(?:[.,]\d+)?)\s*["""″]?\s*([EW])/i;
+  const m = query.trim().match(dms);
+  if (!m) return null;
+  const lat = (parseFloat(m[1]!) + parseFloat(m[2]!) / 60 + parseFloat(m[3]!.replace(",", ".")) / 3600)
+    * (m[4]!.toUpperCase() === "S" ? -1 : 1);
+  const lng = (parseFloat(m[5]!) + parseFloat(m[6]!) / 60 + parseFloat(m[7]!.replace(",", ".")) / 3600)
+    * (m[8]!.toUpperCase() === "W" ? -1 : 1);
   if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) return [lng, lat];
   return null;
 }
@@ -114,8 +132,8 @@ async function geocodeQuery(q: string): Promise<[number, number] | null> {
 }
 
 async function geocode(query: string): Promise<[number, number] | null> {
-  // Issue #2: short-circuit if query is a lat/lng pair
-  const direct = parseLngLat(query);
+  // Short-circuit for coordinate strings — no API call needed
+  const direct = parseLngLat(query) ?? parseDMS(query);
   if (direct) return direct;
 
   // Issue #3: try full query first, then fall back to the address portion alone
