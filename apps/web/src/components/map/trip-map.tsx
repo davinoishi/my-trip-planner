@@ -154,6 +154,9 @@ function cleanAddress(raw: string): string {
     .replace(/(postal\s*code|zip\s*code?|postcode|邮政编码|郵政編碼|〒)\s*:?\s*[\d\s-]{3,10}/gi, "")
     .replace(/\s*\(([EWNSM])\)/gi, (_, d: string) => " " + (DIRECTION[d.toUpperCase()] ?? d))
     .replace(/\s*\([^)]{1,40}\)/g, "")
+    // Normalize spaced house numbers in CJK context: "8 8号" → "88号"
+    // Must run before collapsing spaces so the pattern is still detectable
+    .replace(/(\d)\s+(\d+(?:号|条|弄|路|街|道|巷))/g, "$1$2")
     .replace(/,\s*,/g, ",")
     .replace(/\s{2,}/g, " ")
     .trim()
@@ -235,10 +238,19 @@ async function geocode(query: string): Promise<[number, number] | null> {
   const country = detectCountry(query) ?? undefined;
   const hasCJK = /[\u4e00-\u9fff]/.test(cleaned);
 
-  if (hasCJK && !cleaned.includes(",")) {
-    // CJK space-delimited: try progressively simpler forms
-    for (const candidate of [cleaned, ...buildChineseFallbacks(cleaned)]) {
-      // First attempts use types restriction; final fallbacks (city/district only) go broad
+  // "Venue, CJK address" — activity items combine venue name + address with a comma.
+  // When CJK chars appear after the first comma, extract the CJK portion and geocode
+  // it through the CJK-specific fallback chain rather than the Western comma path.
+  const commaParts = cleaned.split(",").map((s) => s.trim()).filter(Boolean);
+  const cjkAfterComma = commaParts.length >= 2 && /[\u4e00-\u9fff]/.test(commaParts.slice(1).join(""));
+
+  if (hasCJK && (cjkAfterComma || !cleaned.includes(","))) {
+    // Use the CJK address portion only (drop any prepended Western venue name)
+    const cjkPart = cjkAfterComma
+      ? commaParts.slice(1).join(" ").trim()
+      : cleaned;
+
+    for (const candidate of [cjkPart, ...buildChineseFallbacks(cjkPart)]) {
       const broad = candidate.split(/\s+/).length <= 2;
       const r = await geocodeQuery(candidate, country, broad);
       if (r) return r;
@@ -246,7 +258,7 @@ async function geocode(query: string): Promise<[number, number] | null> {
     return null;
   }
 
-  // Comma-delimited (Western format):
+  // Comma-delimited Western format:
   // 1. Simplified (street + city + country) — avoids ambiguous middle districts
   const simplified = simplifyAddress(cleaned);
   if (simplified) {
