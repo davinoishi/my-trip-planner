@@ -92,7 +92,7 @@ export const itineraryItemsRouter = router({
         where: eq(itineraryItems.id, input.id),
       });
       if (!item) throw new TRPCError({ code: "NOT_FOUND" });
-      await assertTripAccess(ctx, item.tripId, true);
+      await assertAccess(ctx.db, item.tripId, ctx.user.id, ctx.user.email, true);
 
       if (item.version !== input.data.version) {
         throw new TRPCError({
