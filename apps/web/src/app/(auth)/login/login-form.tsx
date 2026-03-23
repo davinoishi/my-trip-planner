@@ -6,7 +6,15 @@ import { Plane } from "lucide-react";
 
 export function LoginForm() {
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get("callbackUrl") ?? "/trips";
+  const rawCallback = searchParams.get("callbackUrl") ?? "/trips";
+  // Restrict to safe relative paths only — prevent open redirect attacks.
+  // Must start with "/" but not "//" (protocol-relative URL) and must not contain "://"
+  const callbackUrl =
+    rawCallback.startsWith("/") &&
+    !rawCallback.startsWith("//") &&
+    !rawCallback.includes("://")
+      ? rawCallback
+      : "/trips";
 
   async function handleGoogleSignIn() {
     await signIn.social({

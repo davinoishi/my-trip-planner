@@ -6,6 +6,7 @@ import { createTripSchema, updateTripSchema } from "@trip/shared";
 import { TRPCError } from "@trpc/server";
 import { nanoid } from "../utils/id";
 import { rateLimit } from "../lib/rate-limit";
+import { writeAuditLog } from "../lib/audit";
 
 export const tripsRouter = router({
   list: protectedProcedure.query(async ({ ctx }) => {
@@ -85,6 +86,13 @@ export const tripsRouter = router({
         .where(and(eq(trips.id, input.id), eq(trips.ownerId, ctx.user.id)))
         .returning();
       if (!updated) throw new TRPCError({ code: "NOT_FOUND" });
+      await writeAuditLog({
+        userId: ctx.user.id,
+        action: "trip.archive",
+        resourceType: "trip",
+        resourceId: input.id,
+        metadata: { tripName: updated.name },
+      });
       return updated;
     }),
 
@@ -96,6 +104,13 @@ export const tripsRouter = router({
         .where(and(eq(trips.id, input.id), eq(trips.ownerId, ctx.user.id)))
         .returning();
       if (!result.length) throw new TRPCError({ code: "NOT_FOUND" });
+      await writeAuditLog({
+        userId: ctx.user.id,
+        action: "trip.delete",
+        resourceType: "trip",
+        resourceId: input.id,
+        metadata: { tripName: result[0]!.name },
+      });
       return { success: true };
     }),
 
@@ -143,6 +158,13 @@ export const tripsRouter = router({
         );
       }
 
+      await writeAuditLog({
+        userId: ctx.user.id,
+        action: "trip.duplicate",
+        resourceType: "trip",
+        resourceId: newTripId,
+        metadata: { originalTripId: input.id, originalTripName: original.name },
+      });
       return newTrip!;
     }),
 
@@ -203,6 +225,19 @@ export const tripsRouter = router({
       await ctx.db
         .delete(trips)
         .where(eq(trips.id, input.sourceId));
+
+      await writeAuditLog({
+        userId: ctx.user.id,
+        action: "trip.merge",
+        resourceType: "trip",
+        resourceId: input.targetId,
+        metadata: {
+          targetTripName: target.name,
+          sourceTripId: input.sourceId,
+          sourceTripName: source.name,
+          itemsMerged: sourceItems.length,
+        },
+      });
 
       return target;
     }),

@@ -28,7 +28,13 @@ export default function ImportPage() {
       const res = await fetch("/api/import/poll", { method: "POST" });
       const json = await res.json();
       if (!res.ok) {
-        setError(json.error ?? "Gmail import failed");
+        // If the error is about missing Gmail access, redirect to the connect flow
+        const msg: string = json.error ?? "";
+        if (msg.includes("refresh token") || msg.includes("Gmail access")) {
+          window.location.href = "/api/auth/connect-gmail";
+          return;
+        }
+        setError(msg || "Gmail import failed");
         return;
       }
       const { summary, trips } = json;
@@ -113,6 +119,7 @@ export default function ImportPage() {
         </div>
         <p className="text-sm text-gray-500">
           Scans your inbox for booking confirmation emails and extracts travel details.
+          Gmail access is requested only when you use this feature.
         </p>
         <Button onClick={handleGmailImport} disabled={busy} className="w-full gap-2">
           {gmailBusy ? <Loader2 size={15} className="animate-spin" /> : <Mail size={15} />}

@@ -12,7 +12,9 @@
     "./lib/trip-matcher": "./src/lib/trip-matcher.ts",
     "./lib/booking-to-items": "./src/lib/booking-to-items.ts",
     "./utils/id": "./src/utils/id.ts",
-    "./lib/rate-limit": "./src/lib/rate-limit.ts"
+    "./lib/rate-limit": "./src/lib/rate-limit.ts",
+    "./lib/file-signature": "./src/lib/file-signature.ts",
+    "./lib/audit": "./src/lib/audit.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.80.0",

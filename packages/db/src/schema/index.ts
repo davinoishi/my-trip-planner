@@ -6,3 +6,4 @@ export * from "./documents";
 export * from "./email-imports";
 export * from "./packing-items";
 export * from "./tags";
+export * from "./audit-logs";

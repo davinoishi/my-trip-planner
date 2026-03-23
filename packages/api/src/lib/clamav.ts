@@ -3,10 +3,15 @@ import net from "net";
 /**
  * Scan a buffer with ClamAV via the clamd TCP socket.
  * Returns { clean: true } if no threat found, { clean: false, threat } if infected.
- * Returns { clean: true, skipped: true } if ClamAV is unreachable (dev tolerance).
+ *
+ * @param buffer - The file buffer to scan
+ * @param failOpen - If true (default), unavailability is tolerated (dev mode). If false,
+ *   returns { clean: false, threat: "ClamAV unavailable" } when the service cannot be reached.
+ *   Set CLAMAV_REQUIRED=true in production to enforce fail-closed behavior.
  */
 export async function scanBuffer(
-  buffer: Buffer
+  buffer: Buffer,
+  failOpen = process.env.CLAMAV_REQUIRED !== "true"
 ): Promise<{ clean: boolean; threat?: string; skipped?: boolean }> {
   const host = process.env.CLAMAV_HOST ?? "localhost";
   const port = parseInt(process.env.CLAMAV_PORT ?? "3310", 10);
@@ -19,13 +24,23 @@ export async function scanBuffer(
 
     socket.on("timeout", () => {
       socket.destroy();
-      console.warn("[ClamAV] Connection timed out — skipping scan");
-      resolve({ clean: true, skipped: true });
+      if (failOpen) {
+        console.warn("[ClamAV] Connection timed out — skipping scan (fail-open)");
+        resolve({ clean: true, skipped: true });
+      } else {
+        console.error("[ClamAV] Connection timed out — blocking upload (fail-closed)");
+        resolve({ clean: false, threat: "Virus scanner unavailable" });
+      }
     });
 
     socket.on("error", (err) => {
-      console.warn(`[ClamAV] Unavailable (${err.message}) — skipping scan`);
-      resolve({ clean: true, skipped: true });
+      if (failOpen) {
+        console.warn(`[ClamAV] Unavailable (${err.message}) — skipping scan (fail-open)`);
+        resolve({ clean: true, skipped: true });
+      } else {
+        console.error(`[ClamAV] Unavailable (${err.message}) — blocking upload (fail-closed)`);
+        resolve({ clean: false, threat: "Virus scanner unavailable" });
+      }
     });
 
     socket.connect(port, host, () => {

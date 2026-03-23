@@ -4,11 +4,13 @@ import { db, documents, trips, participants, itineraryItems } from "@trip/db";
 import { eq, and } from "drizzle-orm";
 import { uploadFile } from "@trip/api/lib/storage";
 import { scanBuffer } from "@trip/api/lib/clamav";
+import { validateFileSignature } from "@trip/api/lib/file-signature";
 import { parseBookingDocument } from "@trip/api/lib/booking-parser";
 import { findOrCreateTripForRange } from "@trip/api/lib/trip-matcher";
 import { buildItemsFromParsed } from "@trip/api/lib/booking-to-items";
 import { nanoid } from "@trip/api/utils/id";
 import { rateLimit } from "@trip/api/lib/rate-limit";
+import { writeAuditLog } from "@trip/api/lib/audit";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 
@@ -114,7 +116,15 @@ export async function POST(request: NextRequest) {
   const arrayBuffer = await file.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
 
-  // ── ClamAV scan (optional — skipped if service unavailable) ────────────────
+  // ── File signature validation (magic bytes) ─────────────────────────────
+  if (!validateFileSignature(buffer, file.type)) {
+    return NextResponse.json(
+      { error: "File content does not match declared type" },
+      { status: 400 }
+    );
+  }
+
+  // ── ClamAV scan (fail-closed in production via CLAMAV_REQUIRED=true) ─────
   const scanResult = await scanBuffer(buffer);
   if (!scanResult.clean) {
     return NextResponse.json(
@@ -193,6 +203,22 @@ export async function POST(request: NextRequest) {
       scanPassed: 1,
     })
     .returning();
+
+  await writeAuditLog({
+    userId: user.id,
+    action: "document.upload",
+    resourceType: "document",
+    resourceId: doc!.id,
+    metadata: {
+      tripId: resolvedTripId,
+      fileName: file.name,
+      mimeType: file.type,
+      fileSize: file.size,
+      category,
+      draftItemsCreated: draftItems.length,
+    },
+    ipAddress: request.headers.get("x-forwarded-for") ?? request.headers.get("x-real-ip"),
+  });
 
   return NextResponse.json(
     { document: doc!, draftItems, tripId: resolvedTripId, tripCreated, tripName },
