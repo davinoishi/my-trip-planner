@@ -4,6 +4,8 @@ import { tripsRouter } from "./routers/trips";
 import { itineraryItemsRouter } from "./routers/itinerary-items";
 import { documentsRouter } from "./routers/documents";
 import { importsRouter } from "./routers/imports";
+import { packingListRouter } from "./routers/packing-list";
+import { tagsRouter } from "./routers/tags";
 
 export const appRouter = router({
   users: usersRouter,
@@ -11,6 +13,8 @@ export const appRouter = router({
   itineraryItems: itineraryItemsRouter,
   documents: documentsRouter,
   imports: importsRouter,
+  packingList: packingListRouter,
+  tags: tagsRouter,
 });
 
 export type AppRouter = typeof appRouter;

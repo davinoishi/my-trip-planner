@@ -13,6 +13,7 @@ export const users = pgTable("users", {
   emailVerified: boolean("email_verified").notNull().default(false),
   image: text("image"),
   inboundEmail: text("inbound_email").unique(), // Gmail import address
+  calendarToken: text("calendar_token").unique(), // private iCal feed token
   preferredTimezone: text("preferred_timezone").default("UTC"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

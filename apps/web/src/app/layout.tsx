@@ -5,6 +5,9 @@ import { Providers } from "@/components/providers";
 export const metadata: Metadata = {
   title: "My Trip Planner",
   description: "Your personal travel itinerary manager",
+  icons: {
+    icon: "/my-trip-planner-favicon.ico",
+  },
 };
 
 export default function RootLayout({

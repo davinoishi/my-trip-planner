@@ -3,14 +3,16 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { List, Map, FileText, Users, Settings } from "lucide-react";
+import { List, Map, FileText, Users, Settings, CloudSun, ShoppingBag } from "lucide-react";
 
 const tabs = [
-  { label: "Itinerary", href: "",           icon: List },
-  { label: "Map",       href: "/map",        icon: Map },
-  { label: "Documents", href: "/documents",  icon: FileText },
-  { label: "People",    href: "/participants",icon: Users },
-  { label: "Settings",  href: "/settings",   icon: Settings },
+  { label: "Itinerary",      href: "",             icon: List },
+  { label: "Map",            href: "/map",          icon: Map },
+  { label: "What to Expect", href: "/weather",      icon: CloudSun },
+  { label: "Packing List",   href: "/packing",      icon: ShoppingBag },
+  { label: "Documents",      href: "/documents",    icon: FileText },
+  { label: "People",         href: "/participants", icon: Users },
+  { label: "Settings",       href: "/settings",     icon: Settings },
 ];
 
 export function TripTabs({ tripId }: { tripId: string }) {

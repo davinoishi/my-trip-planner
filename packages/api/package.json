@@ -9,10 +9,13 @@
     "./lib/imap-client": "./src/lib/imap-client.ts",
     "./lib/gmail-client": "./src/lib/gmail-client.ts",
     "./lib/booking-parser": "./src/lib/booking-parser.ts",
+    "./lib/trip-matcher": "./src/lib/trip-matcher.ts",
+    "./lib/booking-to-items": "./src/lib/booking-to-items.ts",
     "./utils/id": "./src/utils/id.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.80.0",
+    "date-fns": "^4.1.0",
     "@aws-sdk/client-s3": "^3.1014.0",
     "@aws-sdk/s3-request-presigner": "^3.1014.0",
     "@trip/db": "workspace:*",

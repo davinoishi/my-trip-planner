@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   DndContext,
   DragEndEvent,
@@ -28,14 +28,51 @@ interface TimelineProps {
   endDate: string;   // "YYYY-MM-DD"
 }
 
+interface DayForecast {
+  date: string;
+  weathercode: number;
+  maxTempC: number;
+  minTempC: number;
+  maxTempF: number;
+  minTempF: number;
+}
+
 export function Timeline({ tripId, startDate, endDate }: TimelineProps) {
   const utils = trpc.useUtils();
   const { data: items = [], isLoading } = trpc.itineraryItems.list.useQuery({ tripId });
+
+  // ── Forecast (only for trips within 10 days) ──────────────────────────────
+  const [forecastByDate, setForecastByDate] = useState<Map<string, DayForecast>>(new Map());
+
+  useEffect(() => {
+    const today = new Date();
+    const tripStartDate = parseISO(startDate);
+    const tripEndDate = parseISO(endDate);
+    const tenDaysFromNow = addDays(today, 10);
+
+    const isUpcoming = tripStartDate <= tenDaysFromNow;
+    const isOngoing = today >= tripStartDate && today <= tripEndDate;
+
+    if (!isUpcoming && !isOngoing) return;
+
+    fetch(`/api/trips/${tripId}/forecast`)
+      .then((r) => r.ok ? r.json() : { forecasts: [] })
+      .then((data: { forecasts: DayForecast[] }) => {
+        const map = new Map<string, DayForecast>();
+        for (const f of data.forecasts) map.set(f.date, f);
+        setForecastByDate(map);
+      })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tripId]);
 
   const createItem = trpc.itineraryItems.create.useMutation({
     onSuccess: () => utils.itineraryItems.list.invalidate({ tripId }),
   });
   const updateItem = trpc.itineraryItems.update.useMutation({
+    onSuccess: () => utils.itineraryItems.list.invalidate({ tripId }),
+  });
+  const setItemTags = trpc.tags.setItemTags.useMutation({
     onSuccess: () => utils.itineraryItems.list.invalidate({ tripId }),
   });
   const deleteItem = trpc.itineraryItems.delete.useMutation({
@@ -157,22 +194,39 @@ export function Timeline({ tripId, startDate, endDate }: TimelineProps) {
     startTime?: string;
     endTime?: string;
     details: Record<string, unknown>;
+    tagIds: string[];
   }) {
+    let itemId: string;
     if (editingItem) {
       await updateItem.mutateAsync({
         id: editingItem.id,
         data: {
-          ...data,
+          type: data.type,
+          title: data.title,
+          notes: data.notes,
+          startTime: data.startTime,
+          endTime: data.endTime,
+          details: data.details,
           dayIndex: formDayIndex,
           version: editingItem.version,
         },
       });
+      itemId = editingItem.id;
     } else {
-      await createItem.mutateAsync({
+      const created = await createItem.mutateAsync({
         tripId,
         dayIndex: formDayIndex,
-        ...data,
+        type: data.type,
+        title: data.title,
+        notes: data.notes,
+        startTime: data.startTime,
+        endTime: data.endTime,
+        details: data.details,
       });
+      itemId = created.id;
+    }
+    if (data.tagIds.length > 0 || editingItem) {
+      await setItemTags.mutateAsync({ itemId, tagIds: data.tagIds });
     }
     setFormOpen(false);
     setEditingItem(null);
@@ -201,17 +255,22 @@ export function Timeline({ tripId, startDate, endDate }: TimelineProps) {
         onDragEnd={handleDragEnd}
       >
         <div className="space-y-8">
-          {Array.from({ length: numDays }, (_, i) => (
-            <DaySection
-              key={i}
-              dayIndex={i}
-              tripStartDate={startDate}
-              items={itemsByDay.get(i) ?? []}
-              onAddItem={openAdd}
-              onEditItem={openEdit}
-              onDeleteItem={setDeleteTarget}
-            />
-          ))}
+          {Array.from({ length: numDays }, (_, i) => {
+            const dayDate = addDays(parseISO(startDate), i);
+            const dateStr = dayDate.toISOString().slice(0, 10);
+            return (
+              <DaySection
+                key={i}
+                dayIndex={i}
+                tripStartDate={startDate}
+                items={itemsByDay.get(i) ?? []}
+                onAddItem={openAdd}
+                onEditItem={openEdit}
+                onDeleteItem={setDeleteTarget}
+                forecast={forecastByDate.get(dateStr) ?? null}
+              />
+            );
+          })}
         </div>
 
         {/* Drag overlay — shows a ghost of the dragged card */}
@@ -244,7 +303,8 @@ export function Timeline({ tripId, startDate, endDate }: TimelineProps) {
         defaultDayIndex={formDayIndex}
         tripDurationDays={numDays}
         editingItem={editingItem}
-        isLoading={createItem.isPending || updateItem.isPending}
+        initialTagIds={editingItem?.tags?.map((t) => t.id) ?? []}
+        isLoading={createItem.isPending || updateItem.isPending || setItemTags.isPending}
       />
 
       {/* Delete confirmation */}

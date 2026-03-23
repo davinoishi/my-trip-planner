@@ -2,11 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Plane, Map, Settings, Plus } from "lucide-react";
+import { Plane, Import, Settings, Plus, BarChart2, Search } from "lucide-react";
+import Image from "next/image";
 import { cn } from "@/lib/utils";
 
 const navItems = [
   { href: "/trips", label: "My Trips", icon: Plane },
+  { href: "/import", label: "Import Booking", icon: Import },
+  { href: "/search", label: "Search", icon: Search },
 ];
 
 export function Sidebar() {
@@ -17,9 +20,13 @@ export function Sidebar() {
       {/* Logo */}
       <div className="px-5 py-5 border-b border-gray-100">
         <Link href="/trips" className="flex items-center gap-2.5">
-          <div className="bg-blue-600 text-white p-2 rounded-lg">
-            <Plane className="w-5 h-5" />
-          </div>
+          <Image
+            src="/My-Trip-Planner-icon.png"
+            alt="My Trip Planner"
+            width={72}
+            height={72}
+            className="rounded-lg"
+          />
           <span className="font-bold text-gray-900 text-base leading-tight">
             My Trip<br />Planner
           </span>
@@ -60,8 +67,20 @@ export function Sidebar() {
         })}
       </nav>
 
-      {/* Settings at bottom */}
-      <div className="px-3 py-4 border-t border-gray-100">
+      {/* Stats + Settings at bottom */}
+      <div className="px-3 py-4 border-t border-gray-100 space-y-1">
+        <Link
+          href="/stats"
+          className={cn(
+            "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
+            pathname.startsWith("/stats")
+              ? "bg-blue-50 text-blue-700"
+              : "text-gray-600 hover:bg-gray-50"
+          )}
+        >
+          <BarChart2 className="w-4 h-4" />
+          Stats
+        </Link>
         <Link
           href="/settings"
           className={cn(

@@ -139,6 +139,18 @@ export function ItemCard({ item, onEdit, onDelete }: ItemCardProps) {
         <p className="truncate text-xs text-gray-500 mt-0.5">
           <ItemSubtitle item={item} />
         </p>
+        {item.tags?.length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-1">
+            {item.tags.map((tag) => (
+              <span
+                key={tag.id}
+                className="inline-block px-1.5 py-0.5 bg-indigo-50 text-indigo-600 text-[10px] font-medium rounded-full border border-indigo-100"
+              >
+                {tag.name}
+              </span>
+            ))}
+          </div>
+        )}
         {item.isDraft === 1 && (
           <span className="mt-1 inline-block rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-700">
             Needs review

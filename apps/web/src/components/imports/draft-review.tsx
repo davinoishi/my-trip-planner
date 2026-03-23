@@ -36,7 +36,12 @@ export function DraftReview({ tripId }: DraftReviewProps) {
         setPollResult(`Error: ${json.error ?? "Unknown error"}`);
       } else {
         const { summary } = json;
-        const msg = `Fetched ${summary.fetched} emails · ${summary.matched} matched · ${summary.unmatched} unmatched · ${summary.skipped} skipped`;
+        const parts = [`Fetched ${summary.fetched} emails`];
+        if (summary.matched > 0) parts.push(`${summary.matched} matched`);
+        if (summary.created > 0) parts.push(`${summary.created} new trip${summary.created !== 1 ? "s" : ""} created`);
+        if (summary.skipped > 0) parts.push(`${summary.skipped} skipped`);
+        if (summary.failed > 0) parts.push(`${summary.failed} failed (check API key)`);
+        const msg = parts.join(" · ");
         setPollResult(msg);
         invalidate();
       }

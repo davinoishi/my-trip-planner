@@ -55,6 +55,7 @@ export function UploadZone({
       form.append("category", category);
       if (itemId) form.append("itemId", itemId);
 
+      setProgress(`Uploading ${file.name}…`);
       const res = await fetch("/api/upload", { method: "POST", body: form });
       const json = await res.json();
 
@@ -63,12 +64,17 @@ export function UploadZone({
         return;
       }
 
+      const count: number = json.draftItems?.length ?? 0;
+      if (count > 0) {
+        setProgress(`Found ${count} booking item${count !== 1 ? "s" : ""} — check pending imports`);
+        setTimeout(() => setProgress(null), 4000);
+      }
+
       onUploaded();
     } catch {
       setError("Network error — please try again");
     } finally {
       setUploading(false);
-      setProgress(null);
     }
   }
 

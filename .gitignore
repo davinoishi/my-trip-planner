@@ -32,3 +32,9 @@ infra/data/
 
 # TypeScript
 *.tsbuildinfo
+
+# Claude
+CLAUDE.md
+
+# Test data
+test-data/

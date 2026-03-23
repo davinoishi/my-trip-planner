@@ -4,7 +4,7 @@ import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Plus, Plane, Calendar, Globe, MoreHorizontal, Copy, Archive, Trash2, GitMerge } from "lucide-react";
+import { Plus, Plane, Calendar, MoreHorizontal, Copy, Archive, Trash2, GitMerge } from "lucide-react";
 import { StatusBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu } from "@/components/ui/dropdown-menu";
@@ -12,6 +12,89 @@ import { Dialog } from "@/components/ui/dialog";
 import { Select } from "@/components/ui/select";
 import { formatDate } from "@trip/shared";
 import type { RouterOutputs } from "@/lib/trpc";
+
+// ── Card visual helpers ────────────────────────────────────────────────────────
+
+const CARD_GRADIENTS = [
+  "from-sky-400 to-blue-500",
+  "from-emerald-400 to-teal-500",
+  "from-orange-400 to-rose-500",
+  "from-violet-400 to-purple-500",
+  "from-amber-400 to-orange-500",
+  "from-pink-400 to-fuchsia-500",
+  "from-cyan-400 to-sky-500",
+  "from-green-400 to-emerald-600",
+];
+
+function cardGradient(name: string): string {
+  let h = 0;
+  for (const c of name) h = (Math.imul(31, h) + c.charCodeAt(0)) | 0;
+  return CARD_GRADIENTS[Math.abs(h) % CARD_GRADIENTS.length]!;
+}
+
+function tripEmoji(name: string, description?: string | null): string {
+  const t = `${name} ${description ?? ""}`.toLowerCase();
+  if (/reef|great barrier|coral|snorkel|dive|diving|underwater/.test(t)) return "🤿";
+  if (/beach|island|caribbean|aruba|bahamas|maldives|hawaii|cancun|bali|riviera/.test(t)) return "🏖️";
+  if (/ski|snowboard|alpine|aspen|whistler|vail|chamonix|powder/.test(t)) return "⛷️";
+  if (/safari|africa|kenya|tanzania|serengeti/.test(t)) return "🦁";
+  if (/australia|cairns|sydney|melbourne|brisbane|perth|adelaide/.test(t)) return "🦘";
+  if (/cruise|ship|sailing|yacht/.test(t)) return "🚢";
+  if (/japan|tokyo|kyoto|osaka/.test(t)) return "⛩️";
+  if (/china|shanghai|shenzhen|beijing|guangzhou|chengdu|hong kong|macau/.test(t)) return "🏯";
+  if (/paris|france|eiffel/.test(t)) return "🗼";
+  if (/rome|italy|italian|colosseum/.test(t)) return "🏛️";
+  if (/new york|nyc|manhattan/.test(t)) return "🗽";
+  if (/london|england|britain/.test(t)) return "🎡";
+  if (/hike|trek|mountain|climbing/.test(t)) return "🏔️";
+  if (/camping|camp|glamping/.test(t)) return "⛺";
+  if (/road trip|drive|driving/.test(t)) return "🚗";
+  if (/wedding|honeymoon/.test(t)) return "💍";
+  if (/business|conference|work|summit/.test(t)) return "💼";
+  if (/disney|theme park|universal/.test(t)) return "🎠";
+  if (/spa|wellness|retreat/.test(t)) return "🧖";
+  if (/food|culinary|wine|tasting/.test(t)) return "🍷";
+  return "✈️";
+}
+
+function CountdownChip({ startDate, endDate }: { startDate: string; endDate: string }) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const start = new Date(startDate + "T00:00:00");
+  const end = new Date(endDate + "T00:00:00");
+  const daysToStart = Math.round((start.getTime() - today.getTime()) / 86400000);
+  const daysToEnd = Math.round((end.getTime() - today.getTime()) / 86400000);
+
+  if (daysToStart > 0 && daysToStart <= 60) {
+    return (
+      <span className="text-[11px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full whitespace-nowrap">
+        {daysToStart === 1 ? "Tomorrow" : `In ${daysToStart} days`}
+      </span>
+    );
+  }
+  if (daysToStart <= 0 && daysToEnd >= 0) {
+    return (
+      <span className="text-[11px] font-semibold text-green-600 bg-green-50 px-2 py-0.5 rounded-full">
+        Ongoing
+      </span>
+    );
+  }
+  if (daysToEnd < 0 && daysToEnd >= -14) {
+    return (
+      <span className="text-[11px] font-medium text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full whitespace-nowrap">
+        {Math.abs(daysToEnd) === 1 ? "Yesterday" : `${Math.abs(daysToEnd)}d ago`}
+      </span>
+    );
+  }
+  return null;
+}
+
+function tripDuration(startDate: string, endDate: string): string {
+  const start = new Date(startDate + "T00:00:00");
+  const end = new Date(endDate + "T00:00:00");
+  const days = Math.round((end.getTime() - start.getTime()) / 86400000) + 1;
+  return days === 1 ? "1 day" : `${days} days`;
+}
 
 // Use tRPC's serialized output type (dates come back as strings over JSON)
 type TripItem = RouterOutputs["trips"]["list"][number];
@@ -211,20 +294,24 @@ function TripCard({
   onDuplicate: () => void;
   onMerge: () => void;
 }) {
+  const gradient = cardGradient(trip.name);
+  const emoji = tripEmoji(trip.name, trip.description);
+  const duration = tripDuration(trip.startDate, trip.endDate);
+
   const menuItems = [
-    { label: "Duplicate",    icon: <Copy className="w-4 h-4" />,    onClick: onDuplicate },
+    { label: "Duplicate",    icon: <Copy className="w-4 h-4" />,     onClick: onDuplicate },
     { label: "Merge into…",  icon: <GitMerge className="w-4 h-4" />, onClick: onMerge },
     { label: "Archive",      icon: <Archive className="w-4 h-4" />,  onClick: onArchive, disabled: trip.status === "archived" },
     { label: "Delete",       icon: <Trash2 className="w-4 h-4" />,   onClick: onDelete, variant: "danger" as const },
   ];
 
   return (
-    <div className="group relative bg-white border border-gray-100 rounded-2xl p-5 hover:shadow-md hover:border-blue-100 transition-all">
-      {/* Actions kebab — shown on hover */}
-      <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
+    <div className="group relative bg-white border border-gray-100 rounded-2xl overflow-hidden hover:shadow-lg hover:border-transparent transition-all duration-200">
+      {/* Kebab menu — rendered outside Link to avoid nested interactive elements */}
+      <div className="absolute top-3 right-3 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
         <DropdownMenu
           trigger={
-            <button className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors">
+            <button className="p-1.5 rounded-lg text-white/80 hover:text-white hover:bg-black/20 transition-colors">
               <MoreHorizontal className="w-4 h-4" />
             </button>
           }
@@ -233,29 +320,34 @@ function TripCard({
       </div>
 
       <Link href={`/trips/${trip.id}`} className="block">
-        <div className="flex items-start justify-between mb-3">
-          <div className="bg-blue-50 p-2.5 rounded-xl">
-            <Plane className="w-5 h-5 text-blue-600" />
+        {/* Gradient banner */}
+        <div className={`h-24 bg-gradient-to-br ${gradient} relative flex items-center justify-center`}>
+          <span className="text-4xl drop-shadow-sm select-none">{emoji}</span>
+          <div className="absolute bottom-2 right-3">
+            <StatusBadge status={trip.status} />
           </div>
-          <StatusBadge status={trip.status} />
         </div>
 
-        <h3 className="font-semibold text-gray-900 mb-2 group-hover:text-blue-700 transition-colors pr-8">
-          {trip.name}
-        </h3>
+        {/* Card body */}
+        <div className="p-4">
+          <h3 className="font-semibold text-gray-900 mb-1 group-hover:text-blue-700 transition-colors pr-6 leading-snug">
+            {trip.name}
+          </h3>
 
-        {trip.description && (
-          <p className="text-xs text-gray-500 mb-2 line-clamp-2">{trip.description}</p>
-        )}
+          {trip.description && (
+            <p className="text-xs text-gray-400 mb-2 line-clamp-1">{trip.description}</p>
+          )}
 
-        <div className="space-y-1.5 text-xs text-gray-500">
-          <div className="flex items-center gap-1.5">
-            <Calendar className="w-3.5 h-3.5 flex-shrink-0" />
-            {formatDate(trip.startDate)} — {formatDate(trip.endDate)}
+          <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
+            <div className="flex items-center gap-1.5">
+              <Calendar className="w-3.5 h-3.5 flex-shrink-0" />
+              <span>{formatDate(trip.startDate)} — {formatDate(trip.endDate)}</span>
+            </div>
+            <span className="text-gray-400">{duration}</span>
           </div>
-          <div className="flex items-center gap-1.5">
-            <Globe className="w-3.5 h-3.5 flex-shrink-0" />
-            {trip.timezone}
+
+          <div className="mt-2">
+            <CountdownChip startDate={trip.startDate} endDate={trip.endDate} />
           </div>
         </div>
       </Link>

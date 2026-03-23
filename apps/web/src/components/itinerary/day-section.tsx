@@ -10,6 +10,27 @@ import { format, addDays } from "date-fns";
 import { ItemCard, type ApiItineraryItem } from "./item-card";
 import { Button } from "@/components/ui/button";
 
+// WMO weather code → emoji
+function weatherEmoji(code: number): string {
+  if (code === 0) return "☀️";
+  if (code <= 3) return "⛅";
+  if (code <= 48) return "🌫️";
+  if (code <= 57) return "🌦️";
+  if (code <= 67) return "🌧️";
+  if (code <= 77) return "❄️";
+  if (code <= 82) return "🌧️";
+  if (code <= 86) return "🌨️";
+  return "⛈️";
+}
+
+interface DayForecast {
+  weathercode: number;
+  maxTempC: number;
+  minTempC: number;
+  maxTempF: number;
+  minTempF: number;
+}
+
 interface DaySectionProps {
   dayIndex: number;
   tripStartDate: string; // "YYYY-MM-DD"
@@ -17,6 +38,7 @@ interface DaySectionProps {
   onAddItem: (dayIndex: number) => void;
   onEditItem: (item: ApiItineraryItem) => void;
   onDeleteItem: (item: ApiItineraryItem) => void;
+  forecast?: DayForecast | null;
 }
 
 export function DaySection({
@@ -26,6 +48,7 @@ export function DaySection({
   onAddItem,
   onEditItem,
   onDeleteItem,
+  forecast,
 }: DaySectionProps) {
   const dayDate = addDays(new Date(tripStartDate + "T00:00:00"), dayIndex);
   const dayLabel = format(dayDate, "EEEE, MMMM d");
@@ -43,6 +66,15 @@ export function DaySection({
         <div>
           <p className="text-sm font-semibold text-gray-900">{dayLabel}</p>
         </div>
+        {forecast && (
+          <div className="flex items-center gap-1.5 text-xs text-gray-500">
+            <span>{weatherEmoji(forecast.weathercode)}</span>
+            <span className="font-medium text-gray-700">{forecast.maxTempC}°</span>
+            <span>/</span>
+            <span>{forecast.minTempC}°C</span>
+            <span className="text-gray-400">({forecast.maxTempF}°/{forecast.minTempF}°F)</span>
+          </div>
+        )}
         <div className="ml-auto">
           <Button
             variant="ghost"

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -17,6 +17,8 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { ItemTypeIcon, typeLabel } from "./item-type-icon";
+import { TagSelector } from "./tag-selector";
+import { trpc } from "@/lib/trpc";
 
 // Combined form schema: base fields + details are both flat in the form, then split on submit
 const formSchema = z.object({
@@ -288,10 +290,12 @@ interface ItemFormProps {
     startTime?: string;
     endTime?: string;
     details: Record<string, unknown>;
+    tagIds: string[];
   }) => void;
   defaultDayIndex: number;
   tripDurationDays: number;
   editingItem?: ApiItineraryItem | null;
+  initialTagIds?: string[];
   isLoading?: boolean;
 }
 
@@ -312,9 +316,15 @@ export function ItemForm({
   onClose,
   onSubmit,
   editingItem,
+  initialTagIds,
   isLoading,
 }: ItemFormProps) {
   const isEditing = !!editingItem;
+
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>(initialTagIds ?? []);
+
+  const { data: availableTags = [] } = trpc.tags.list.useQuery();
+  const createTag = trpc.tags.create.useMutation();
 
   const {
     register,
@@ -329,12 +339,17 @@ export function ItemForm({
       : { type: "flight" },
   });
 
-  // Reset form when the editing target changes
+  // Reset form and tag selection only when the dialog opens — NOT on every
+  // editingItem change, because the list query refetches mid-submission (after
+  // updateItem completes) and would otherwise clear selectedTagIds before
+  // setItemTags has a chance to run.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (open) {
       reset(editingItem ? flattenItemToForm(editingItem) : { type: "flight" });
+      setSelectedTagIds((editingItem?.tags ?? []).map((t) => t.id));
     }
-  }, [open, editingItem, reset]);
+  }, [open]); // intentionally omit editingItem — only reset on open/close
 
   const selectedType = watch("type");
 
@@ -352,6 +367,7 @@ export function ItemForm({
       startTime: values.startTime || undefined,
       endTime: values.endTime || undefined,
       details,
+      tagIds: selectedTagIds,
     });
   }
 
@@ -410,6 +426,14 @@ export function ItemForm({
             </p>
           )}
         </div>
+
+        {/* Tags */}
+        <TagSelector
+          selected={selectedTagIds}
+          onChange={setSelectedTagIds}
+          availableTags={availableTags}
+          onCreateTag={async (name) => createTag.mutateAsync({ name })}
+        />
 
         {/* Notes */}
         <Field label="Notes" error={errors.notes?.message}>

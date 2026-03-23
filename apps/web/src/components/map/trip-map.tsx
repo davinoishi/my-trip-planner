@@ -6,6 +6,7 @@ import type { LayerProps } from "react-map-gl/mapbox";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { Plane, Hotel, Car, Train, Zap, ArrowRight, StickyNote } from "lucide-react";
 import type { RouterOutputs } from "@/lib/trpc";
+import { getAirportCoords } from "@/lib/airports";
 
 type ApiItineraryItem = RouterOutputs["itineraryItems"]["list"][number];
 
@@ -41,6 +42,52 @@ interface FlightRoute {
   item: ApiItineraryItem;
   from: [number, number]; // [lng, lat]
   to: [number, number];
+}
+
+/**
+ * Computes great-circle waypoints between two [lng, lat] coordinates.
+ * Normalizes longitudes so Mapbox doesn't wrap the wrong way across the antimeridian.
+ */
+function greatCircleCoords(
+  from: [number, number],
+  to: [number, number],
+  steps = 64
+): [number, number][] {
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const toDeg = (r: number) => (r * 180) / Math.PI;
+  const [lng1, lat1] = [toRad(from[0]), toRad(from[1])];
+  const [lng2, lat2] = [toRad(to[0]), toRad(to[1])];
+
+  // Angular distance using haversine
+  const d = 2 * Math.asin(Math.sqrt(
+    Math.pow(Math.sin((lat2 - lat1) / 2), 2) +
+    Math.cos(lat1) * Math.cos(lat2) * Math.pow(Math.sin((lng2 - lng1) / 2), 2)
+  ));
+  if (d === 0) return [from, to];
+
+  // Spherical interpolation via 3-D Cartesian slerp
+  const pts: [number, number][] = [];
+  for (let i = 0; i <= steps; i++) {
+    const f = i / steps;
+    const A = Math.sin((1 - f) * d) / Math.sin(d);
+    const B = Math.sin(f * d) / Math.sin(d);
+    const x = A * Math.cos(lat1) * Math.cos(lng1) + B * Math.cos(lat2) * Math.cos(lng2);
+    const y = A * Math.cos(lat1) * Math.sin(lng1) + B * Math.cos(lat2) * Math.sin(lng2);
+    const z = A * Math.sin(lat1) + B * Math.sin(lat2);
+    pts.push([toDeg(Math.atan2(y, x)), toDeg(Math.atan2(z, Math.sqrt(x * x + y * y)))]);
+  }
+
+  // Normalize longitudes: keep each point within 180° of its predecessor so
+  // Mapbox draws the line in the correct direction across the antimeridian.
+  const out: [number, number][] = [pts[0]];
+  for (let i = 1; i < pts.length; i++) {
+    let lng = pts[i][0];
+    const prev = out[i - 1][0];
+    while (lng - prev > 180) lng -= 360;
+    while (lng - prev < -180) lng += 360;
+    out.push([lng, pts[i][1]]);
+  }
+  return out;
 }
 
 async function geocode(query: string): Promise<[number, number] | null> {
@@ -133,8 +180,8 @@ export function TripMap({ items }: { items: ApiItineraryItem[] }) {
         if (airports) {
           const [fromCode, toCode] = airports;
           const [from, to] = await Promise.all([
-            geocode(`${fromCode} airport`),
-            geocode(`${toCode} airport`),
+            Promise.resolve(getAirportCoords(fromCode) ?? null).then(c => c ?? geocode(`${fromCode} international airport`)),
+            Promise.resolve(getAirportCoords(toCode) ?? null).then(c => c ?? geocode(`${toCode} international airport`)),
           ]);
           if (from && to) {
             newRoutes.push({ item, from, to });
@@ -179,7 +226,7 @@ export function TripMap({ items }: { items: ApiItineraryItem[] }) {
       properties: {},
       geometry: {
         type: "LineString" as const,
-        coordinates: [r.from, r.to],
+        coordinates: greatCircleCoords(r.from, r.to),
       },
     })),
   };

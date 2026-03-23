@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { eq, and, asc, inArray } from "drizzle-orm";
+import { eq, and, asc, inArray, sql, getTableColumns } from "drizzle-orm";
 import { router, protectedProcedure } from "../trpc";
-import { itineraryItems, trips, participants } from "@trip/db";
+import { itineraryItems, trips, participants, tags, itemTags } from "@trip/db";
 import {
   createItineraryItemSchema,
   updateItineraryItemSchema,
@@ -46,8 +46,19 @@ export const itineraryItemsRouter = router({
     .input(z.object({ tripId: z.string() }))
     .query(async ({ ctx, input }) => {
       await assertTripAccess(ctx, input.tripId);
-      return ctx.db
-        .select()
+      const rows = await ctx.db
+        .select({
+          ...getTableColumns(itineraryItems),
+          tags: sql<{ id: string; name: string }[]>`
+            COALESCE(
+              (SELECT json_agg(json_build_object('id', t.id, 'name', t.name) ORDER BY t.name)
+               FROM item_tags it2
+               JOIN tags t ON t.id = it2.tag_id
+               WHERE it2.item_id = ${itineraryItems.id}),
+              '[]'::json
+            )
+          `.as("tags"),
+        })
         .from(itineraryItems)
         .where(eq(itineraryItems.tripId, input.tripId))
         .orderBy(
@@ -55,6 +66,7 @@ export const itineraryItemsRouter = router({
           asc(itineraryItems.sortOrder),
           asc(itineraryItems.createdAt)
         );
+      return rows;
     }),
 
   /** Create a new itinerary item. */

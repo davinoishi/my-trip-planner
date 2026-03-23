@@ -105,8 +105,9 @@ function extractText(part: GmailPart): string {
 // ── Public API ─────────────────────────────────────────────────────────────────
 
 /**
- * Fetch unread emails from the user's Gmail inbox using the Gmail API.
- * Marks each message as read after fetching.
+ * Fetch recent inbox emails from the user's Gmail account using the Gmail API.
+ * Searches all inbox messages from the last 90 days regardless of read status.
+ * Deduplication is handled by the caller via the emailImports DB table.
  * Returns parsed emails ready for the booking parser.
  */
 export async function fetchUnseenEmails(
@@ -115,10 +116,10 @@ export async function fetchUnseenEmails(
 ): Promise<FetchedEmail[]> {
   const gmail = await getGmailClient(userId);
 
-  // List unread messages — Gmail query syntax
+  // Query recent inbox messages regardless of read status — DB dedup prevents re-processing
   const listRes = await gmail.users.messages.list({
     userId: "me",
-    q: "is:unread",
+    q: "in:inbox newer_than:90d",
     maxResults: maxMessages,
   });
 
@@ -156,7 +157,6 @@ export async function fetchUnseenEmails(
 
       // Skip very short/empty bodies
       if (bodyText.length < 100) {
-        await markAsRead(gmail, ref.id);
         continue;
       }
 
@@ -168,24 +168,10 @@ export async function fetchUnseenEmails(
         receivedAt,
         bodyText: bodyText.slice(0, 8000), // cap for Claude
       });
-
-      // Mark as read so we don't reprocess it
-      await markAsRead(gmail, ref.id);
     } catch (err) {
       console.warn(`[Gmail] Failed to fetch message ${ref.id}:`, err);
     }
   }
 
   return results;
-}
-
-async function markAsRead(
-  gmail: ReturnType<typeof google.gmail>,
-  messageId: string
-) {
-  await gmail.users.messages.modify({
-    userId: "me",
-    id: messageId,
-    requestBody: { removeLabelIds: ["UNREAD"] },
-  });
 }
