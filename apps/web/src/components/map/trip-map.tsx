@@ -119,7 +119,7 @@ function parseDMS(query: string): [number, number] | null {
 }
 
 /**
- * Detect the ISO 3166-1 alpha-2 country code from address text.
+ * Detect ISO 3166-1 alpha-2 country code from address text.
  * Used to restrict Mapbox results to the correct country.
  */
 const COUNTRY_HINTS: Array<[RegExp, string]> = [
@@ -129,7 +129,7 @@ const COUNTRY_HINTS: Array<[RegExp, string]> = [
   [/\btaiwan\b|台湾|台灣|台北|taipei/i, "TW"],
   [/\bfrance\b|paris|lyon|marseille/i, "FR"],
   [/\bgermany\b|deutschland|berlin|munich|münchen|frankfurt/i, "DE"],
-  [/\bitalyb\b|italia|rome|milan|roma|milano/i, "IT"],
+  [/\bitaly\b|italia|rome|milan|roma|milano/i, "IT"],
   [/\bspain\b|españa|madrid|barcelona/i, "ES"],
   [/\b(uk|united kingdom|england|britain)\b|london|manchester|edinburgh/i, "GB"],
 ];
@@ -142,18 +142,46 @@ function detectCountry(address: string): string | null {
 }
 
 /**
- * Clean an address string before geocoding:
- * - Strip postal code labels in any language (邮政编码, ZIP, Postal Code, etc.)
- * - Strip parenthetical street qualifiers like (E-1), (W), (Section 2)
+ * Clean an address before geocoding:
+ * - Strip postal code labels (邮政编码, ZIP, Postal Code, …)
+ *   Note: no \b before CJK — \b only works for ASCII word boundaries
+ * - Strip parenthetical qualifiers like (E-1), (W), (Section 2)
  */
 function cleanAddress(raw: string): string {
   return raw
-    .replace(/\b(postal\s*code|zip\s*code?|postcode|邮政编码|郵政編碼|〒)\s*:?\s*[\d\s-]{3,10}/gi, "")
+    .replace(/(postal\s*code|zip\s*code?|postcode|邮政编码|郵政編碼|〒)\s*:?\s*[\d\s-]{3,10}/gi, "")
     .replace(/\s*\([^)]{1,40}\)/g, "")
     .replace(/,\s*,/g, ",")
     .replace(/\s{2,}/g, " ")
     .trim()
     .replace(/,\s*$/, "");
+}
+
+/**
+ * For comma-delimited addresses with 4+ components, keep only
+ * street + last 2 meaningful parts (city + country).
+ * Drops ambiguous intermediate neighborhoods/districts that
+ * exist in multiple cities (e.g. "Huangpu" is in both Shanghai and Guangzhou).
+ */
+function simplifyAddress(cleaned: string): string | null {
+  const parts = cleaned.split(",").map((s) => s.trim()).filter(Boolean);
+  if (parts.length < 4) return null;
+  const meaningful = parts.filter((p) => !/^[\d\s-]+$/.test(p));
+  if (meaningful.length < 3) return null;
+  return [meaningful[0]!, ...meaningful.slice(-2)].join(", ");
+}
+
+/**
+ * For Chinese addresses without commas: strip building/mall names
+ * and floor indicators that follow the street number, since these
+ * are too granular for geocoding (e.g. "号上海国金中心商场1层" → "号").
+ */
+function stripChineseBuildingSuffix(s: string): string | null {
+  const stripped = s
+    .replace(/(号)\s*[\u4e00-\u9fff][\u4e00-\u9fff\w]*(商场|广场|中心|大厦|大楼|购物|酒店|饭店)\S*/g, "$1")
+    .replace(/\d+\s*[层楼]/g, "")
+    .trim();
+  return stripped !== s ? stripped : null;
 }
 
 async function geocodeQuery(q: string, country?: string): Promise<[number, number] | null> {
@@ -183,12 +211,29 @@ async function geocode(query: string): Promise<[number, number] | null> {
   const cleaned = cleanAddress(query);
   const country = detectCountry(query) ?? undefined;
 
-  // Try full cleaned query (with country restriction if detected)
+  // For multi-part addresses, try simplified (street + city + country) FIRST —
+  // intermediate district names like "Huangpu" exist in multiple cities and
+  // cause wrong-city matches even when country is restricted.
+  const simplified = simplifyAddress(cleaned);
+  if (simplified) {
+    const r = await geocodeQuery(simplified, country);
+    if (r) return r;
+  }
+
+  // Try full cleaned address
   const result = await geocodeQuery(cleaned, country);
   if (result) return result;
 
-  // Fallback: strip leading venue/shop name before the first comma
-  const parts = cleaned.split(",").map((s) => s.trim()).filter(Boolean);
+  // For Chinese addresses: strip building/floor suffix (e.g. "国金中心商场1层")
+  // that follows the street number and makes the query too specific
+  const withoutBuilding = stripChineseBuildingSuffix(cleaned);
+  if (withoutBuilding) {
+    const r = await geocodeQuery(withoutBuilding, country);
+    if (r) return r;
+  }
+
+  // Last resort: drop the first component (venue/shop name)
+  const parts = (withoutBuilding ?? cleaned).split(",").map((s) => s.trim()).filter(Boolean);
   if (parts.length > 1) {
     return geocodeQuery(parts.slice(1).join(", "), country);
   }
