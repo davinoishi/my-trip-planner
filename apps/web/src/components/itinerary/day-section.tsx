@@ -7,7 +7,7 @@ import {
 } from "@dnd-kit/sortable";
 import { Plus } from "lucide-react";
 import { format, addDays } from "date-fns";
-import { ItemCard, type ApiItineraryItem } from "./item-card";
+import { ItemCard, type ApiItineraryItem, type ExpandedItem } from "./item-card";
 import { Button } from "@/components/ui/button";
 
 // WMO weather code → emoji
@@ -34,10 +34,10 @@ interface DayForecast {
 interface DaySectionProps {
   dayIndex: number;
   tripStartDate: string; // "YYYY-MM-DD"
-  items: ApiItineraryItem[];
+  items: ExpandedItem[];
   onAddItem: (dayIndex: number) => void;
-  onEditItem: (item: ApiItineraryItem) => void;
-  onDeleteItem: (item: ApiItineraryItem) => void;
+  onEditItem: (item: ExpandedItem) => void;
+  onDeleteItem: (item: ExpandedItem) => void;
   forecast?: DayForecast | null;
 }
 
@@ -52,7 +52,7 @@ export function DaySection({
 }: DaySectionProps) {
   const dayDate = addDays(new Date(tripStartDate + "T00:00:00"), dayIndex);
   const dayLabel = format(dayDate, "EEEE, MMMM d");
-  const itemIds = items.map((i) => i.id);
+  const itemIds = items.map((i) => i._dndId ?? i.id);
 
   const { setNodeRef } = useDroppable({ id: `day-${dayIndex}` });
 

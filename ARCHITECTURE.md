@@ -15,6 +15,7 @@
 | Weather | Open-Meteo (free, no key required) |
 | Email Import | Gmail API |
 | Virus Scan | ClamAV |
+| HTTP Proxy | noBGP (HTTPS tunnel) |
 | Cache / Session | Redis |
 
 ---
@@ -86,7 +87,7 @@ graph TB
     end
 
     subgraph APIPackage["@trip/api — Business Logic"]
-        Routers["tRPC Routers\ntrips · items · tags\npacking · users · imports"]
+        Routers["tRPC Routers\ntrips · items · tags · shares\npacking · users · imports"]
         BookingParser["Booking Parser\n(Claude AI)"]
         TripMatcher["Trip Matcher\n(date-range grouping)"]
         Storage["Storage Layer\n(MinIO S3)"]
@@ -104,6 +105,7 @@ graph TB
         Redis["Redis\n(sessions)"]
         MinIO["MinIO\n(S3-compatible\ndocument storage)"]
         ClamAV["ClamAV\n(virus scanning)"]
+        NoBGP["noBGP\n(HTTPS proxy)"]
     end
 
     subgraph External["External Services"]

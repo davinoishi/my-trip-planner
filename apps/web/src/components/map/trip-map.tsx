@@ -155,8 +155,11 @@ function cleanAddress(raw: string): string {
     .replace(/\s*\(([EWNSM])\)/gi, (_, d: string) => " " + (DIRECTION[d.toUpperCase()] ?? d))
     .replace(/\s*\([^)]{1,40}\)/g, "")
     // Normalize spaced house numbers in CJK context: "8 8号" → "88号"
-    // Must run before collapsing spaces so the pattern is still detectable
+    // Must run before building-strip so the pattern is already normalized
     .replace(/(\d)\s+(\d+(?:号|条|弄|路|街|道|巷))/g, "$1$2")
+    // Strip building/floor names that follow a Chinese house number: "88号国金中心1层" → "88号"
+    // \b doesn't work before CJK — pattern matches digit+号 then any CJK char to end-of-segment
+    .replace(/(\d+号)\s*[\u4e00-\u9fff][^,]*/g, "$1")
     .replace(/,\s*,/g, ",")
     .replace(/\s{2,}/g, " ")
     .trim()
@@ -185,11 +188,10 @@ function simplifyAddress(cleaned: string): string | null {
 function buildChineseFallbacks(cleaned: string): string[] {
   const fallbacks: string[] = [];
 
-  // Strip building/mall/shop suffix after street number
-  // "世纪大道 8 8号上海国金中心商场1层" → "世纪大道 8 8号"
+  // Strip building/mall/floor suffix after house number
+  // "上海市 浦东新区 世纪大道 88号上海国金中心商场1层" → "上海市 浦东新区 世纪大道 88号"
   const withoutBuilding = cleaned
-    .replace(/(号)\s*[\u4e00-\u9fff][\u4e00-\u9fff\w]*(商场|广场|中心|大厦|大楼|购物|酒店|饭店)\S*/g, "$1")
-    .replace(/\d+\s*[层楼]/g, "")
+    .replace(/(\d+号)\s*[\u4e00-\u9fff].*/g, "$1")
     .trim();
   if (withoutBuilding !== cleaned) fallbacks.push(withoutBuilding);
 
@@ -417,7 +419,7 @@ export function TripMap({ items }: { items: ApiItineraryItem[] }) {
   };
 
   return (
-    <div className="relative w-full rounded-2xl overflow-hidden border border-gray-100" style={{ height: 600 }}>
+    <div className="relative w-full rounded-2xl overflow-hidden border border-gray-100 h-[calc(100dvh-280px)] md:h-[600px]">
       <Map
         ref={mapRef}
         initialViewState={getInitialViewState(items)}

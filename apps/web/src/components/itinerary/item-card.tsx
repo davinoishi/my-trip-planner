@@ -18,13 +18,28 @@ import { Button } from "@/components/ui/button";
 
 export type ApiItineraryItem = RouterOutputs["itineraryItems"]["list"][number];
 
+/** Virtual item type used only in the timeline UI — one DB record may render as two cards. */
+export type ExpandedItem = ApiItineraryItem & {
+  /** When set, this card represents one leg of a multi-day flight or hotel stay. */
+  _subtype?: "depart" | "arrive" | "checkin" | "checkout";
+  /** Unique DnD id — avoids id collisions when two virtual cards share the same item.id. */
+  _dndId?: string;
+};
+
+const SUBTYPE_LABEL: Record<string, string> = {
+  depart: "Depart",
+  arrive: "Arrive",
+  checkin: "Check-in",
+  checkout: "Check-out",
+};
+
 interface ItemCardProps {
-  item: ApiItineraryItem;
-  onEdit: (item: ApiItineraryItem) => void;
-  onDelete: (item: ApiItineraryItem) => void;
+  item: ExpandedItem;
+  onEdit: (item: ExpandedItem) => void;
+  onDelete: (item: ExpandedItem) => void;
 }
 
-function ItemSubtitle({ item }: { item: ApiItineraryItem }) {
+function ItemSubtitle({ item }: { item: ExpandedItem }) {
   const d = item.details as Record<string, string> | null;
   if (!d) return null;
 
@@ -35,15 +50,29 @@ function ItemSubtitle({ item }: { item: ApiItineraryItem }) {
         f.departureAirport && f.arrivalAirport
           ? `${f.departureAirport} → ${f.arrivalAirport}`
           : null;
+
+      if (item._subtype === "arrive") {
+        const parts = [route, f.arrivalTime ? `Arrives ${f.arrivalTime}` : null].filter(Boolean);
+        return parts.length ? <span>{parts.join(" · ")}</span> : null;
+      }
+      // depart or no subtype
       const times =
         f.departureTime && f.arrivalTime
           ? `${f.departureTime} – ${f.arrivalTime}`
-          : item.startTime ?? null;
+          : f.departureTime ?? item.startTime ?? null;
       const parts = [f.airline, f.flightNumber, route, times].filter(Boolean);
       return parts.length ? <span>{parts.join(" · ")}</span> : null;
     }
     case "hotel": {
       const h = d as unknown as HotelDetails;
+      if (item._subtype === "checkout") {
+        const parts = [
+          h.hotelName,
+          h.checkOutTime ? `Check-out ${h.checkOutTime}` : null,
+        ].filter(Boolean);
+        return parts.length ? <span>{parts.join(" · ")}</span> : null;
+      }
+      // checkin or no subtype
       const parts = [
         h.hotelName,
         h.checkInTime ? `Check-in ${h.checkInTime}` : null,
@@ -98,6 +127,8 @@ function ItemSubtitle({ item }: { item: ApiItineraryItem }) {
 }
 
 export function ItemCard({ item, onEdit, onDelete }: ItemCardProps) {
+  const isVirtualSecondary = item._subtype === "arrive" || item._subtype === "checkout";
+
   const {
     attributes,
     listeners,
@@ -105,7 +136,10 @@ export function ItemCard({ item, onEdit, onDelete }: ItemCardProps) {
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: item.id });
+  } = useSortable({
+    id: item._dndId ?? item.id,
+    disabled: isVirtualSecondary,
+  });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -113,29 +147,42 @@ export function ItemCard({ item, onEdit, onDelete }: ItemCardProps) {
     opacity: isDragging ? 0.4 : 1,
   };
 
+  const subtypeLabel = item._subtype ? SUBTYPE_LABEL[item._subtype] : null;
+
   return (
     <div
       ref={setNodeRef}
       style={style}
       className="group flex items-start gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-sm hover:border-gray-300 hover:shadow-md transition-all"
     >
-      {/* Drag handle */}
-      <button
-        {...attributes}
-        {...listeners}
-        className="mt-0.5 cursor-grab touch-none text-gray-300 opacity-0 group-hover:opacity-100 active:cursor-grabbing"
-        tabIndex={-1}
-        aria-label="Drag to reorder"
-      >
-        <GripVertical size={16} />
-      </button>
+      {/* Drag handle — hidden for virtual secondary cards */}
+      {!isVirtualSecondary ? (
+        <button
+          {...attributes}
+          {...listeners}
+          className="mt-0.5 cursor-grab touch-none text-gray-300 opacity-0 group-hover:opacity-100 active:cursor-grabbing"
+          tabIndex={-1}
+          aria-label="Drag to reorder"
+        >
+          <GripVertical size={16} />
+        </button>
+      ) : (
+        <div className="mt-0.5 w-4" />
+      )}
 
       {/* Type icon */}
       <ItemTypeIcon type={item.type} withBg size={16} />
 
       {/* Content */}
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-gray-900">{item.title}</p>
+        <div className="flex items-center gap-1.5">
+          <p className="truncate text-sm font-medium text-gray-900">{item.title}</p>
+          {subtypeLabel && (
+            <span className="shrink-0 rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold text-indigo-600 border border-indigo-100">
+              {subtypeLabel}
+            </span>
+          )}
+        </div>
         <p className="truncate text-xs text-gray-500 mt-0.5">
           <ItemSubtitle item={item} />
         </p>
@@ -165,8 +212,8 @@ export function ItemCard({ item, onEdit, onDelete }: ItemCardProps) {
         </span>
       )}
 
-      {/* Actions */}
-      <div className="relative shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+      {/* Actions — always visible on mobile (no hover), fade in on desktop hover */}
+      <div className="relative shrink-0 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
         <DropdownMenu
           trigger={
             <Button variant="ghost" size="sm" className="h-7 w-7 p-0">

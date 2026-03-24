@@ -13,7 +13,7 @@ export default async function TripLayout({ children, params }: TripLayoutProps) 
     <div className="max-w-6xl mx-auto space-y-0">
       <TripDetailHeader tripId={tripId} />
       <TripTabs tripId={tripId} />
-      <div className="pt-6">{children}</div>
+      <div className="pt-4 md:pt-6">{children}</div>
     </div>
   );
 }

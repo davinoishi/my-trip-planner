@@ -6,30 +6,23 @@
 
 TripIt is a great product, but it's owned by a travel agency, and every itinerary you import hands your private travel plans — flight numbers, hotel bookings, passport details — to a third party with a financial interest in your trips. My Trip Planner is a drop-in alternative you host yourself, so your travel data never leaves your own server.
 
-> **Pre-MVP:** Core itinerary management, Gmail import, document parsing, and map view are working. Some features are still in progress — see the [feature status](#feature-status) section below.
-
 ---
 
 ## Features
 
-### What works today
 - **Trip management** — create, edit, archive, duplicate, and merge trips
-- **Itinerary timeline** — 7 booking types (flights, hotels, car rentals, trains, activities, transfers, notes) with drag-to-reorder
+- **Itinerary timeline** — 7 booking types (flights, hotels, car rentals, trains, activities, transfers, notes) with drag-to-reorder; multi-day flights and hotel stays show as Depart/Arrive and Check-in/Check-out entries on the correct days
 - **Gmail import** — scans your inbox for booking confirmation emails and uses Claude AI to extract travel details automatically
 - **Document upload** — upload a PDF or photo of a confirmation; Claude parses it and creates itinerary items
 - **Interactive map** — Mapbox-powered map view of your trip route
 - **10-day weather forecast** — shown on the itinerary for upcoming trips (Open-Meteo, no API key required)
 - **Tags & search** — tag itinerary items and search across all trips
 - **Travel stats** — total trips, days traveled, distance flown, countries and cities visited
+- **iCal calendar feed** — subscribe to your trip itinerary from any calendar app (Google Calendar, Apple Calendar, Outlook, etc.) using a private token-based feed URL
+- **Trip sharing** — share trips with others by email; viewer or editor roles; account-level or per-trip
+- **Trip notes** — freeform notes per trip with auto-save
+- **Mobile-optimized UI** — responsive layout with bottom navigation for phones and tablets
 - **Google sign-in** — authentication via your Google account (no passwords to manage)
-
-### In progress
-- **iCal calendar feed** — subscribe to your trip itinerary from any calendar app (Google Calendar, Apple Calendar, Outlook, etc.) using a private token-based feed URL; built but not fully tested
-
-### Not yet available (coming soon)
-- **Trip sharing / collaboration** — invite others to view or edit a trip
-- **Notifications & reminders** — alerts before upcoming trips or departures
-- **Travel notes** — attach freeform notes to trips or individual items
 
 ---
 
@@ -45,7 +38,7 @@ TripIt is a great product, but it's owned by a travel agency, and every itinerar
 | Cache / rate limiting | Redis 7 |
 | AI parsing | Anthropic Claude API |
 | Virus scanning | ClamAV |
-| Reverse proxy | Caddy 2 (auto HTTPS) |
+| HTTP proxy | noBGP (public or private HTTPS tunnel) |
 | Container runtime | Docker + Docker Compose |
 
 ---
@@ -54,9 +47,8 @@ TripIt is a great product, but it's owned by a travel agency, and every itinerar
 
 ### Prerequisites
 
-- A server or VPS running Linux (1 GB RAM minimum; 2 GB recommended)
-- [Docker](https://docs.docker.com/engine/install/) and [Docker Compose](https://docs.docker.com/compose/install/) installed
-- A domain name pointed at your server (for HTTPS)
+- A machine running Linux with [Docker](https://docs.docker.com/engine/install/) and [Docker Compose](https://docs.docker.com/compose/install/) installed (1 GB RAM minimum; 2 GB recommended)
+- A [noBGP](https://nobgp.com) account for HTTPS access (free tier available)
 - A [Google Cloud](https://console.cloud.google.com) project with OAuth credentials
 - An [Anthropic API key](https://console.anthropic.com) (Claude — used for email/document parsing)
 - A [Mapbox token](https://account.mapbox.com) (free tier is sufficient)
@@ -72,7 +64,22 @@ cd my-trip-planner
 
 ---
 
-### Step 2 — Configure environment variables
+### Step 2 — Publish via noBGP to get your public URL
+
+noBGP creates an HTTPS tunnel to your local app. You'll need this URL before configuring Google OAuth.
+
+1. Install the noBGP client and log in
+2. Publish your app on port 3000:
+   ```bash
+   nobgp publish --port 3000
+   ```
+3. Note the public URL you receive — it will look like `https://yourapp.nobgp.com` (or a custom domain if you've configured one)
+
+> **Private proxy:** noBGP also supports private proxies if you don't want the URL to be publicly listed. Either way, Google OAuth requires a valid HTTPS URL with a public domain — noBGP provides this.
+
+---
+
+### Step 3 — Configure environment variables
 
 Copy the example file and fill in your values:
 
@@ -88,11 +95,11 @@ Open `.env` and set the following:
 # Generate a random secret: openssl rand -hex 32
 BETTER_AUTH_SECRET=your-random-32-char-secret
 
-# Your domain (include https:// in production)
-APP_URL=https://trips.yourdomain.com
-NEXT_PUBLIC_APP_URL=https://trips.yourdomain.com
+# Your noBGP public URL (from Step 2)
+APP_URL=https://yourapp.nobgp.com
+NEXT_PUBLIC_APP_URL=https://yourapp.nobgp.com
 
-# Google OAuth — see Step 3
+# Google OAuth — see Step 4
 GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=your-client-secret
 
@@ -100,7 +107,7 @@ GOOGLE_CLIENT_SECRET=your-client-secret
 ANTHROPIC_API_KEY=sk-ant-your-key
 
 # Mapbox — required for the map view
-MAPBOX_TOKEN=pk.your-mapbox-token
+NEXT_PUBLIC_MAPBOX_TOKEN=pk.your-mapbox-token
 
 # ─── Database & services (change these passwords) ─────────────────────────────
 POSTGRES_PASSWORD=change-me-strong-password
@@ -116,47 +123,19 @@ CLAMAV_REQUIRED=true
 
 ---
 
-### Step 3 — Set up Google OAuth
+### Step 4 — Set up Google OAuth
 
 1. Go to the [Google Cloud Console](https://console.cloud.google.com)
 2. Create a new project (or select an existing one)
 3. Navigate to **APIs & Services → Credentials → Create Credentials → OAuth 2.0 Client ID**
 4. Set the application type to **Web application**
-5. Add an authorized redirect URI:
+5. Add your noBGP URL as an authorized redirect URI:
    ```
-   https://trips.yourdomain.com/api/auth/callback/google
+   https://yourapp.nobgp.com/api/auth/callback/google
    ```
 6. Copy the **Client ID** and **Client Secret** into your `.env` file
 
 > **Gmail import:** Gmail access is requested separately — only when you first use the "Scan Gmail inbox" feature. You do not need to enable the Gmail API in advance; the app will prompt for permission when needed.
-
----
-
-### Step 4 — Configure Caddy for your domain
-
-Edit `infra/Caddyfile` and replace `:80` with your domain:
-
-```
-trips.yourdomain.com {
-    reverse_proxy app:3000 {
-        header_up Host {host}
-        header_up X-Real-IP {remote_host}
-        header_up X-Forwarded-For {remote_host}
-        header_up X-Forwarded-Proto {scheme}
-    }
-
-    encode gzip
-
-    header {
-        X-Content-Type-Options nosniff
-        X-Frame-Options DENY
-        Referrer-Policy strict-origin-when-cross-origin
-        -Server
-    }
-}
-```
-
-Caddy will automatically obtain and renew a TLS certificate from Let's Encrypt.
 
 ---
 
@@ -167,7 +146,7 @@ cd infra
 docker compose up -d
 ```
 
-This starts: PostgreSQL, PgBouncer, Redis, MinIO, ClamAV, Caddy, and the app.
+This starts: PostgreSQL, PgBouncer, Redis, MinIO, ClamAV, and the app.
 
 > **First boot:** ClamAV downloads its virus signature database on startup. This takes 2–5 minutes. Uploads may be blocked until it's ready if `CLAMAV_REQUIRED=true`.
 
@@ -231,7 +210,7 @@ Then in another terminal, from the repo root:
 pnpm install
 
 # Copy env and fill in your values
-cp .env.example apps/web/.env.local
+cp .env.example .env
 
 # Run database migrations
 DATABASE_URL=postgresql://tripit:tripit_dev_password@localhost:5432/tripit \
@@ -268,24 +247,13 @@ The app will be available at [http://localhost:3000](http://localhost:3000).
 
 ---
 
-## Feature status
+## Roadmap
 
-| Feature | Status |
-|---|---|
-| Trip management (create / edit / delete / archive) | ✅ Available |
-| 7 itinerary item types | ✅ Available |
-| Drag-to-reorder items | ✅ Available |
-| Gmail booking import | ✅ Available |
-| Document upload & parsing | ✅ Available |
-| Tags & global search | ✅ Available |
-| Interactive map view | ✅ Available |
-| 10-day weather forecast | ✅ Available |
-| Travel stats dashboard | ✅ Available |
-| Google sign-in | ✅ Available |
-| iCal calendar feed (subscribe in any calendar app) | 🧪 Built, not fully tested |
-| Trip sharing / collaboration | 🔲 Planned |
-| Notifications & reminders | 🔲 Planned |
-| Travel notes | 🔲 Planned |
+Later:
+- [ ] Gmail import creates duplicates (forwarded email). Gracefully handle duplicate data from imports.
+- [ ] Email forward solution (instead of a sync and read all the emails). Forward information to a fixed trip@domain.com
+- [ ] Notifications: alert before upcoming trips / departures
+- [ ] Offline access, Mobile App
 
 ---
 

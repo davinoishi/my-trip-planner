@@ -14,7 +14,7 @@ import {
 import { arrayMove } from "@dnd-kit/sortable";
 import { differenceInCalendarDays, addDays, parseISO } from "date-fns";
 import type { BookingType } from "@trip/shared";
-import { type ApiItineraryItem } from "./item-card";
+import { type ApiItineraryItem, type ExpandedItem } from "./item-card";
 import { DaySection } from "./day-section";
 import { ItemCard } from "./item-card";
 import { ItemForm } from "./item-form";
@@ -86,8 +86,8 @@ export function Timeline({ tripId, startDate, endDate }: TimelineProps) {
   const [formOpen, setFormOpen] = useState(false);
   const [formDayIndex, setFormDayIndex] = useState(0);
   const [editingItem, setEditingItem] = useState<ApiItineraryItem | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<ApiItineraryItem | null>(null);
-  const [activeItem, setActiveItem] = useState<ApiItineraryItem | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<ExpandedItem | null>(null);
+  const [activeItem, setActiveItem] = useState<ExpandedItem | null>(null);
 
   // ── Trip duration ─────────────────────────────────────────────────────────
   const numDays = useMemo(() => {
@@ -95,20 +95,47 @@ export function Timeline({ tripId, startDate, endDate }: TimelineProps) {
     return Math.max(diff + 1, 1);
   }, [startDate, endDate]);
 
-  // ── Group items by day ────────────────────────────────────────────────────
+  // ── Group items by day, expanding multi-day flights and hotel stays ──────
   const itemsByDay = useMemo(() => {
-    const map = new Map<number, ApiItineraryItem[]>();
+    const map = new Map<number, ExpandedItem[]>();
     for (let i = 0; i < numDays; i++) map.set(i, []);
-    for (const item of items) {
-      const day = Math.min(item.dayIndex, numDays - 1);
-      map.get(day)?.push(item);
+
+    function clamp(idx: number) {
+      return Math.max(0, Math.min(idx, numDays - 1));
     }
-    // Sort within each day
+
+    for (const item of items) {
+      const d = item.details as Record<string, string> | null;
+
+      if (item.type === "flight" && d?.departureDate && d?.arrivalDate) {
+        const departIdx = clamp(differenceInCalendarDays(parseISO(d.departureDate), parseISO(startDate)));
+        const arriveIdx = clamp(differenceInCalendarDays(parseISO(d.arrivalDate), parseISO(startDate)));
+        if (departIdx !== arriveIdx) {
+          map.get(departIdx)?.push({ ...item, _subtype: "depart", _dndId: item.id });
+          map.get(arriveIdx)?.push({ ...item, _subtype: "arrive", _dndId: `${item.id}-arrive` });
+          continue;
+        }
+      }
+
+      if (item.type === "hotel" && d?.checkInDate && d?.checkOutDate) {
+        const checkInIdx = clamp(differenceInCalendarDays(parseISO(d.checkInDate), parseISO(startDate)));
+        const checkOutIdx = clamp(differenceInCalendarDays(parseISO(d.checkOutDate), parseISO(startDate)));
+        if (checkInIdx !== checkOutIdx) {
+          map.get(checkInIdx)?.push({ ...item, _subtype: "checkin", _dndId: item.id });
+          map.get(checkOutIdx)?.push({ ...item, _subtype: "checkout", _dndId: `${item.id}-checkout` });
+          continue;
+        }
+      }
+
+      // Normal single-day item
+      map.get(clamp(item.dayIndex))?.push(item);
+    }
+
     for (const [, dayItems] of map) {
       dayItems.sort((a, b) => a.sortOrder - b.sortOrder || new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
     }
     return map;
-  }, [items, numDays]);
+  }, [items, numDays, startDate]);
 
   // ── Drag and drop ─────────────────────────────────────────────────────────
   const sensors = useSensors(
@@ -144,30 +171,35 @@ export function Timeline({ tripId, startDate, endDate }: TimelineProps) {
         ? sourceDayItems
         : [...(itemsByDay.get(targetDayIndex) ?? [])];
 
-    let reordered: ApiItineraryItem[];
+    // Virtual secondary cards (arrive/checkout) are not draggable and should
+    // not be included in reorder payloads — they share an id with a primary card.
+    const isSecondary = (i: ExpandedItem) => i._subtype === "arrive" || i._subtype === "checkout";
+    const dndId = (i: ExpandedItem) => i._dndId ?? i.id;
+
+    let reordered: ExpandedItem[];
 
     if (sourceDayIndex === targetDayIndex) {
-      const oldIdx = sourceDayItems.findIndex((i) => i.id === active.id);
-      const newIdx = sourceDayItems.findIndex((i) => i.id === over.id);
+      const oldIdx = sourceDayItems.findIndex((i) => dndId(i) === String(active.id));
+      const newIdx = sourceDayItems.findIndex((i) => dndId(i) === String(over.id));
       if (oldIdx === -1 || newIdx === -1) return;
       reordered = arrayMove(sourceDayItems, oldIdx, newIdx);
     } else {
       // Moving between days
-      const fromIdx = sourceDayItems.findIndex((i) => i.id === active.id);
+      const fromIdx = sourceDayItems.findIndex((i) => dndId(i) === String(active.id));
       sourceDayItems.splice(fromIdx, 1);
-      targetDayItems.push(activeItemData);
+      targetDayItems.push(activeItemData as ExpandedItem);
       reordered = targetDayItems;
     }
 
-    // Build bulk reorder payload
+    // Build bulk reorder payload — skip virtual secondary cards
     const payload: { id: string; dayIndex: number; sortOrder: number }[] = [];
 
     if (sourceDayIndex !== targetDayIndex) {
-      sourceDayItems.forEach((item, i) =>
+      sourceDayItems.filter(i => !isSecondary(i)).forEach((item, i) =>
         payload.push({ id: item.id, dayIndex: sourceDayIndex, sortOrder: i })
       );
     }
-    reordered.forEach((item, i) =>
+    reordered.filter(i => !isSecondary(i)).forEach((item, i) =>
       payload.push({ id: item.id, dayIndex: targetDayIndex, sortOrder: i })
     );
 
@@ -181,9 +213,11 @@ export function Timeline({ tripId, startDate, endDate }: TimelineProps) {
     setFormOpen(true);
   }
 
-  function openEdit(item: ApiItineraryItem) {
-    setEditingItem(item);
-    setFormDayIndex(item.dayIndex);
+  function openEdit(item: ExpandedItem) {
+    // Strip virtual-only fields so the form sees the original item
+    const { _subtype: _, _dndId: __, ...realItem } = item;
+    setEditingItem(realItem as ApiItineraryItem);
+    setFormDayIndex(realItem.dayIndex);
     setFormOpen(true);
   }
 
@@ -196,6 +230,21 @@ export function Timeline({ tripId, startDate, endDate }: TimelineProps) {
     details: Record<string, unknown>;
     tagIds: string[];
   }) {
+    // Derive dayIndex from departure/check-in date if the user set one
+    let effectiveDayIndex = formDayIndex;
+    const det = data.details as Record<string, string>;
+    if (data.type === "flight" && det.departureDate) {
+      effectiveDayIndex = Math.max(0, Math.min(
+        differenceInCalendarDays(parseISO(det.departureDate), parseISO(startDate)),
+        numDays - 1
+      ));
+    } else if (data.type === "hotel" && det.checkInDate) {
+      effectiveDayIndex = Math.max(0, Math.min(
+        differenceInCalendarDays(parseISO(det.checkInDate), parseISO(startDate)),
+        numDays - 1
+      ));
+    }
+
     let itemId: string;
     if (editingItem) {
       await updateItem.mutateAsync({
@@ -207,7 +256,7 @@ export function Timeline({ tripId, startDate, endDate }: TimelineProps) {
           startTime: data.startTime,
           endTime: data.endTime,
           details: data.details,
-          dayIndex: formDayIndex,
+          dayIndex: effectiveDayIndex,
           version: editingItem.version,
         },
       });
@@ -215,7 +264,7 @@ export function Timeline({ tripId, startDate, endDate }: TimelineProps) {
     } else {
       const created = await createItem.mutateAsync({
         tripId,
-        dayIndex: formDayIndex,
+        dayIndex: effectiveDayIndex,
         type: data.type,
         title: data.title,
         notes: data.notes,
@@ -288,7 +337,7 @@ export function Timeline({ tripId, startDate, endDate }: TimelineProps) {
       </DndContext>
 
       {/* Add Item FAB on mobile */}
-      <div className="fixed bottom-6 right-6 md:hidden">
+      <div className="fixed bottom-20 right-5 md:hidden">
         <Button onClick={() => openAdd(0)} className="rounded-full shadow-lg gap-1">
           <Plus size={16} />
           Add Item

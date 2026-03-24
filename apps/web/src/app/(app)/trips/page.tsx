@@ -150,8 +150,8 @@ export default function TripsPage() {
   return (
     <div className="max-w-5xl mx-auto">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">My Trips</h1>
+      <div className="flex items-center justify-between mb-4 md:mb-6">
+        <h1 className="text-xl md:text-2xl font-bold text-gray-900">My Trips</h1>
         <Link href="/trips/new">
           <Button>
             <Plus className="w-4 h-4" />
@@ -309,7 +309,7 @@ function TripCard({
     <div className="group relative bg-white border border-gray-100 rounded-2xl overflow-hidden hover:shadow-lg hover:border-transparent transition-all duration-200">
       {/* Kebab menu — rendered outside Link to avoid nested interactive elements */}
       {menuItems.length > 0 && (
-        <div className="absolute top-3 right-3 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="absolute top-3 right-3 z-10 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
           <DropdownMenu
             trigger={
               <button className="p-1.5 rounded-lg text-white/80 hover:text-white hover:bg-black/20 transition-colors">

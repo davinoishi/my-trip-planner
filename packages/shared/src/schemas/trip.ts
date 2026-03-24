@@ -10,7 +10,9 @@ export const createTripSchema = z.object({
   status: z.enum(TRIP_STATUSES).optional(),
 });
 
-export const updateTripSchema = createTripSchema.partial();
+export const updateTripSchema = createTripSchema.partial().extend({
+  notes: z.string().optional(),
+});
 
 // Output type with defaults applied — used in the API router
 export type CreateTripInput = z.infer<typeof createTripSchema>;

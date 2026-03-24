@@ -22,6 +22,7 @@ export const trips = pgTable(
     id: text("id").primaryKey(),
     name: text("name").notNull(),
     description: text("description"),
+    notes: text("notes"),
     startDate: date("start_date").notNull(),
     endDate: date("end_date").notNull(),
     timezone: text("timezone").notNull().default("UTC"),

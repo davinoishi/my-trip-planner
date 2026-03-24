@@ -72,46 +72,48 @@ export function TripDetailHeader({ tripId }: { tripId: string }) {
   ];
 
   return (
-    <div className="pb-4">
+    <div className="pb-3 md:pb-4">
       <Link
         href="/trips"
-        className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors mb-3"
+        className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors mb-2 md:mb-3"
       >
         <ArrowLeft className="w-3.5 h-3.5" />
         All trips
       </Link>
 
-      <div className="flex items-start justify-between">
-        <div className="space-y-2">
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold text-gray-900">{trip.name}</h1>
+      <div className="flex items-start justify-between gap-3">
+        <div className="space-y-1.5 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h1 className="text-xl md:text-2xl font-bold text-gray-900 truncate">{trip.name}</h1>
             <StatusBadge status={trip.status} />
           </div>
 
-          <div className="flex items-center gap-4 text-sm text-gray-500">
+          <div className="flex flex-wrap items-center gap-3 text-sm text-gray-500">
             <span className="flex items-center gap-1.5">
-              <Calendar className="w-4 h-4" />
+              <Calendar className="w-4 h-4 shrink-0" />
               {formatDate(trip.startDate)} — {formatDate(trip.endDate)}
             </span>
-            <span className="flex items-center gap-1.5">
-              <Globe className="w-4 h-4" />
+            <span className="hidden sm:flex items-center gap-1.5">
+              <Globe className="w-4 h-4 shrink-0" />
               {trip.timezone}
             </span>
           </div>
 
           {trip.description && (
-            <p className="text-sm text-gray-600">{trip.description}</p>
+            <p className="text-sm text-gray-600 line-clamp-2 md:line-clamp-none">{trip.description}</p>
           )}
         </div>
 
-        <DropdownMenu
-          trigger={
-            <button className="p-2 rounded-xl text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors">
-              <MoreHorizontal className="w-5 h-5" />
-            </button>
-          }
-          items={menuItems}
-        />
+        {!trip.isSharedToMe && (
+          <DropdownMenu
+            trigger={
+              <button className="p-2 rounded-xl text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors shrink-0">
+                <MoreHorizontal className="w-5 h-5" />
+              </button>
+            }
+            items={menuItems}
+          />
+        )}
       </div>
     </div>
   );

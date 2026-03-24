@@ -14,3 +14,12 @@ body {
   background: #f8f9fa;
   color: #1a1a2e;
 }
+
+/* Hide scrollbars while preserving scroll functionality */
+.scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}

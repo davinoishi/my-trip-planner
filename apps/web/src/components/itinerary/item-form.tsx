@@ -40,7 +40,9 @@ const formSchema = z.object({
   flightNumber: z.string().max(20).optional(),
   departureAirport: z.string().max(10).optional(),
   arrivalAirport: z.string().max(10).optional(),
+  departureDate: z.string().optional().or(z.literal("")),
   departureTime: z.string().optional(),
+  arrivalDate: z.string().optional().or(z.literal("")),
   arrivalTime: z.string().optional(),
   confirmationNumber: z.string().max(50).optional(),
   cabinClass: z
@@ -51,7 +53,9 @@ const formSchema = z.object({
   seat: z.string().max(20).optional(),
   hotelName: z.string().max(200).optional(),
   address: z.string().max(500).optional(),
+  checkInDate: z.string().optional().or(z.literal("")),
   checkInTime: z.string().optional(),
+  checkOutDate: z.string().optional().or(z.literal("")),
   checkOutTime: z.string().optional(),
   roomType: z.string().max(100).optional(),
   bookingUrl: z.string().optional(),
@@ -91,10 +95,16 @@ function FlightFields({ register, errors }: any) {
       <Field label="To (IATA)" error={errors.arrivalAirport?.message}>
         <Input placeholder="NRT" {...register("arrivalAirport")} />
       </Field>
-      <Field label="Departs" error={errors.departureTime?.message}>
+      <Field label="Departure Date" error={errors.departureDate?.message}>
+        <Input type="date" {...register("departureDate")} />
+      </Field>
+      <Field label="Departure Time" error={errors.departureTime?.message}>
         <Input type="time" {...register("departureTime")} />
       </Field>
-      <Field label="Arrives" error={errors.arrivalTime?.message}>
+      <Field label="Arrival Date" error={errors.arrivalDate?.message}>
+        <Input type="date" {...register("arrivalDate")} />
+      </Field>
+      <Field label="Arrival Time" error={errors.arrivalTime?.message}>
         <Input type="time" {...register("arrivalTime")} />
       </Field>
       <Field label="Cabin Class" error={errors.cabinClass?.message}>
@@ -128,8 +138,14 @@ function HotelFields({ register, errors }: any) {
       <Field label="Address" error={errors.address?.message} hint='Street address, place name, decimal coords (35.676, 139.650), or DMS (31° 14′ 24″ N  121° 29′ 44″ E)' className="col-span-2">
         <Input placeholder="123 Main St, Tokyo" {...register("address")} />
       </Field>
+      <Field label="Check-in Date" error={errors.checkInDate?.message}>
+        <Input type="date" {...register("checkInDate")} />
+      </Field>
       <Field label="Check-in Time" error={errors.checkInTime?.message}>
         <Input type="time" {...register("checkInTime")} />
+      </Field>
+      <Field label="Check-out Date" error={errors.checkOutDate?.message}>
+        <Input type="date" {...register("checkOutDate")} />
       </Field>
       <Field label="Check-out Time" error={errors.checkOutTime?.message}>
         <Input type="time" {...register("checkOutTime")} />
@@ -270,8 +286,8 @@ function TransferFields({ register, errors }: any) {
 
 // ── Detail field keys by type (for extracting from flat form values) ───────────
 const detailKeysByType: Record<BookingType, string[]> = {
-  flight: ["airline","flightNumber","departureAirport","arrivalAirport","departureTime","arrivalTime","confirmationNumber","cabinClass","terminal","seat"],
-  hotel: ["hotelName","address","checkInTime","checkOutTime","confirmationNumber","roomType","bookingUrl","phone"],
+  flight: ["airline","flightNumber","departureAirport","arrivalAirport","departureDate","departureTime","arrivalDate","arrivalTime","confirmationNumber","cabinClass","terminal","seat"],
+  hotel: ["hotelName","address","checkInDate","checkInTime","checkOutDate","checkOutTime","confirmationNumber","roomType","bookingUrl","phone"],
   car_rental: ["company","pickupLocation","dropoffLocation","confirmationNumber","carType","pickupTime","dropoffTime","bookingUrl"],
   train: ["carrier","trainNumber","departureStation","arrivalStation","departureTime","arrivalTime","confirmationNumber","carNumber","seatNumber"],
   activity: ["venue","address","startTime","endTime","confirmationNumber","bookingUrl","phone"],
@@ -346,7 +362,8 @@ export function ItemForm({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (open) {
-      reset(editingItem ? flattenItemToForm(editingItem) : { type: "flight" });
+      // For new items, explicitly clear all text fields so prior form values don't bleed through
+      reset(editingItem ? flattenItemToForm(editingItem) : { type: "flight", title: "", notes: "" });
       setSelectedTagIds((editingItem?.tags ?? []).map((t) => t.id));
     }
   }, [open]); // intentionally omit editingItem — only reset on open/close
@@ -401,7 +418,7 @@ export function ItemForm({
           <Input placeholder="Add a title…" {...register("title")} />
         </Field>
 
-        {selectedType !== "activity" && (
+        {selectedType !== "activity" && selectedType !== "flight" && selectedType !== "hotel" && (
           <div className="grid grid-cols-2 gap-3">
             <Field label="Start Time" hint="HH:MM" error={errors.startTime?.message}>
               <Input type="time" {...register("startTime")} />

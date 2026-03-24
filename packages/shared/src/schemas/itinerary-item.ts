@@ -7,13 +7,21 @@ const timeString = z
   .regex(/^\d{2}:\d{2}$/, "Must be HH:MM")
   .optional();
 
+// ── YYYY-MM-DD date string ─────────────────────────────────────────────────────
+const dateString = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Must be YYYY-MM-DD")
+  .optional();
+
 // ── Type-specific detail schemas ───────────────────────────────────────────────
 export const flightDetailsSchema = z.object({
   airline: z.string().max(100).optional(),
   flightNumber: z.string().max(20).optional(),
   departureAirport: z.string().max(10).optional(), // IATA code e.g. YVR
   arrivalAirport: z.string().max(10).optional(),
+  departureDate: dateString,
   departureTime: timeString,
+  arrivalDate: dateString,
   arrivalTime: timeString,
   confirmationNumber: z.string().max(50).optional(),
   cabinClass: z
@@ -26,7 +34,9 @@ export const flightDetailsSchema = z.object({
 export const hotelDetailsSchema = z.object({
   hotelName: z.string().max(200).optional(),
   address: z.string().max(500).optional(),
+  checkInDate: dateString,
   checkInTime: timeString,
+  checkOutDate: dateString,
   checkOutTime: timeString,
   confirmationNumber: z.string().max(50).optional(),
   roomType: z.string().max(100).optional(),
