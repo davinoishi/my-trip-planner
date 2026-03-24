@@ -58,7 +58,7 @@ TripIt is a great product, but it's owned by a travel agency, and every itinerar
 ### Step 1 — Clone the repository
 
 ```bash
-git clone https://github.com/your-username/my-trip-planner.git
+git clone https://github.com/davinoishi/my-trip-planner.git
 cd my-trip-planner
 ```
 
