@@ -5,3 +5,4 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp"; -- UUID generation (backup for nanoi
 
 -- Drizzle migrations will create all tables.
 -- This file only sets up extensions that must exist before migrations run.
+

@@ -84,3 +84,4 @@ export const shareLinks = pgTable("share_links", {
 export type Participant = typeof participants.$inferSelect;
 export type AccountShare = typeof accountShares.$inferSelect;
 export type ShareLink = typeof shareLinks.$inferSelect;
+

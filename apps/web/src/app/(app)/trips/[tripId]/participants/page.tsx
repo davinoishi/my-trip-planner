@@ -226,3 +226,4 @@ function PersonRow({ person, isOwner, onUpdate, onRemove }: PersonRowProps) {
     </div>
   );
 }
+

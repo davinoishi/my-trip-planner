@@ -21,3 +21,4 @@ export const packingItems = pgTable("packing_items", {
 
 export type PackingItem = typeof packingItems.$inferSelect;
 export type NewPackingItem = typeof packingItems.$inferInsert;
+

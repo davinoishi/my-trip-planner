@@ -22,3 +22,4 @@ export default function MapPage({ params }: MapPageProps) {
 
   return <TripMap items={items} />;
 }
+

@@ -19,3 +19,4 @@ CREATE TABLE "account_shares" (
 CREATE INDEX "account_shares_owner_idx" ON "account_shares" ("owner_id");
 CREATE INDEX "account_shares_user_idx" ON "account_shares" ("shared_with_user_id");
 CREATE INDEX "account_shares_email_idx" ON "account_shares" ("shared_with_email");
+

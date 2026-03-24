@@ -34,3 +34,4 @@ services:
 
   pgbouncer:
     profiles: ["production-only"]
+

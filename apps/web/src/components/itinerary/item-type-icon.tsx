@@ -66,3 +66,4 @@ export const typeLabel: Record<BookingType, string> = {
   transfer: "Transfer",
   note: "Note",
 };
+

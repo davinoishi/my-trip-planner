@@ -25,3 +25,4 @@ export type ParticipantRole = (typeof PARTICIPANT_ROLES)[number];
 
 export const ITEM_SOURCES = ["manual", "email_import", "imap_poll"] as const;
 export type ItemSource = (typeof ITEM_SOURCES)[number];
+

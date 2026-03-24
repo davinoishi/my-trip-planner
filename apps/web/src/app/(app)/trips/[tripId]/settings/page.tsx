@@ -144,3 +144,4 @@ export default function TripSettingsPage({ params }: SettingsPageProps) {
     </div>
   );
 }
+

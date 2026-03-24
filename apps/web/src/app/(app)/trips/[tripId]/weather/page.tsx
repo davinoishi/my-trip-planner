@@ -186,3 +186,4 @@ export default function WeatherPage({ params }: WeatherPageProps) {
     </div>
   );
 }
+

@@ -256,3 +256,4 @@ export const sharesRouter = router({
       return resolveTripAccess(ctx.db, input.tripId, ctx.user.id, ctx.user.email);
     }),
 });
+

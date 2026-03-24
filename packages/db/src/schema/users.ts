@@ -62,3 +62,4 @@ export const verifications = pgTable("verifications", {
 
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
+

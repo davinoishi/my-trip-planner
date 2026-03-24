@@ -128,3 +128,4 @@ export async function findOrCreateTripForRange(
 
   return { trip: created!, created: true };
 }
+

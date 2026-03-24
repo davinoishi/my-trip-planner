@@ -14291,3 +14291,4 @@ export const COUNTRY_NAMES: Record<string, string> = {
 export function getAirportCoords(iataCode: string): [number, number] | null {
   return AIRPORT_COORDS[iataCode.toUpperCase()] ?? null;
 }
+

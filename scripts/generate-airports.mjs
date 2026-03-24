@@ -208,3 +208,4 @@ lines_out.push(``);
 writeFileSync(OUT_PATH, lines_out.join("\n"), "utf8");
 console.log(`✅ Written to ${OUT_PATH}`);
 console.log(`   ${byCountry.size} countries, ${airports.length} airports`);
+

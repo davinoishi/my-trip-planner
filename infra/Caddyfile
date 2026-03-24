@@ -27,3 +27,4 @@
 # :80/storage/* {
 #     reverse_proxy minio:9000
 # }
+

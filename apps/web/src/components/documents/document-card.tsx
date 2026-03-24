@@ -143,3 +143,4 @@ export function DocumentCard({ doc, onDeleted }: DocumentCardProps) {
     </div>
   );
 }
+

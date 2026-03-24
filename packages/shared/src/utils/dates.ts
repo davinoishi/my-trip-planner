@@ -42,3 +42,4 @@ export function tripDayDate(startDate: string, dayIndex: number): string {
   date.setDate(date.getDate() + dayIndex);
   return date.toISOString().split("T")[0]!;
 }
+

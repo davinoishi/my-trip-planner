@@ -24,3 +24,4 @@ mc ilm rule add --expire-days 365 local/raw-emails
 
 echo "MinIO initialization complete."
 echo "  Buckets: documents, raw-emails, exports"
+

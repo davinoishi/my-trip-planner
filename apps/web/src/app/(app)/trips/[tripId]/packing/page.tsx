@@ -376,3 +376,4 @@ export default function PackingPage({ params }: PackingPageProps) {
     </div>
   );
 }
+

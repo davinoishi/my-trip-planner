@@ -197,3 +197,4 @@ export function DraftCard({ item, onApproved, onRejected }: DraftCardProps) {
     </div>
   );
 }
+

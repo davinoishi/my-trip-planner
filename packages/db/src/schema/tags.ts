@@ -27,3 +27,4 @@ export const itemTags = pgTable(
 
 export type Tag = typeof tags.$inferSelect;
 export type ItemTag = typeof itemTags.$inferInsert;
+

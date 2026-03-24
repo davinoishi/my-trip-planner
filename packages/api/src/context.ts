@@ -17,3 +17,4 @@ export type ProtectedContext = Context & {
   session: Session;
   user: User;
 };
+

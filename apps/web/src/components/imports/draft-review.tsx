@@ -118,3 +118,4 @@ export function DraftReview({ tripId }: DraftReviewProps) {
     </div>
   );
 }
+

@@ -172,3 +172,4 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({ ...stats, years });
 }
+

@@ -52,3 +52,4 @@ export const emailImports = pgTable(
 
 export type EmailImport = typeof emailImports.$inferSelect;
 export type NewEmailImport = typeof emailImports.$inferInsert;
+

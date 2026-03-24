@@ -246,3 +246,4 @@ export async function parseBookingDocument(
     throw new Error(`JSON parse error: ${(e as Error).message}`);
   }
 }
+

@@ -6,3 +6,4 @@ import { randomBytes } from "crypto";
 export function nanoid(): string {
   return randomBytes(16).toString("base64url").slice(0, 21);
 }
+

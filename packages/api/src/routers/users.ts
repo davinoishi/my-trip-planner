@@ -58,3 +58,4 @@ export const usersRouter = router({
     return { token: updated!.calendarToken! };
   }),
 });
+
