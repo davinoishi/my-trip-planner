@@ -110,14 +110,21 @@ CLAMAV_REQUIRED=true
 
 ### Step 3 — Start the stack
 
+**x86_64 (Intel/AMD) — includes ClamAV virus scanning:**
 ```bash
 cd infra
-docker compose up -d
+docker compose --profile scanning up -d
 ```
 
-This starts: PostgreSQL, PgBouncer, Redis, MinIO, ClamAV, and the app on port 3000.
+**ARM64 (Raspberry Pi, Apple Silicon) — ClamAV has no ARM64 image:**
+```bash
+cd infra
+CLAMAV_REQUIRED=false docker compose up -d
+```
 
-> **First boot:** ClamAV downloads its virus signature database on startup. This takes 2–5 minutes. Uploads may be blocked until it's ready if `CLAMAV_REQUIRED=true`.
+This starts: PostgreSQL, Redis, MinIO, and the app on port 3000. On x86_64 with `--profile scanning`, ClamAV is also started.
+
+> **First boot with ClamAV:** ClamAV downloads its virus signature database on startup. This takes 2–5 minutes. Uploads may be blocked until it's ready if `CLAMAV_REQUIRED=true`.
 
 Check that everything is running:
 

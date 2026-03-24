@@ -73,9 +73,13 @@ services:
       - internal
 
   # ─── Malware Scanner ────────────────────────────────────────────────────────
-  # Note: clamav/clamav:latest has no ARM64 image. On ARM64 (e.g. Raspberry Pi),
-  # remove this service and set CLAMAV_REQUIRED=false in your .env.
+  # clamav/clamav:latest is x86_64 only — no ARM64 image exists.
+  # It is gated behind the "scanning" profile so it is excluded by default.
+  # To enable it (x86_64 only):
+  #   docker compose --profile scanning up -d
+  # Also set CLAMAV_REQUIRED=true in your .env when running with this profile.
   clamav:
+    profiles: ["scanning"]
     image: clamav/clamav:latest
     restart: unless-stopped
     environment:
