@@ -64,22 +64,7 @@ cd my-trip-planner
 
 ---
 
-### Step 2 — Publish via noBGP to get your public URL
-
-noBGP creates an HTTPS tunnel to your local app. You'll need this URL before configuring Google OAuth.
-
-1. Install the noBGP client and log in
-2. Publish your app on port 3000:
-   ```bash
-   nobgp publish --port 3000
-   ```
-3. Note the public URL you receive — it will look like `https://yourapp.nobgp.com` (or a custom domain if you've configured one)
-
-> **Private proxy:** noBGP also supports private proxies if you don't want the URL to be publicly listed. Either way, Google OAuth requires a valid HTTPS URL with a public domain — noBGP provides this.
-
----
-
-### Step 3 — Configure environment variables
+### Step 2 — Configure environment variables
 
 Copy the example file and fill in your values:
 
@@ -87,7 +72,7 @@ Copy the example file and fill in your values:
 cp .env.example .env
 ```
 
-Open `.env` and set the following:
+Open `.env` and set the following (you will fill in the noBGP URL and Google OAuth credentials in the next two steps):
 
 ```bash
 # ─── Required ────────────────────────────────────────────────────────────────
@@ -95,11 +80,11 @@ Open `.env` and set the following:
 # Generate a random secret: openssl rand -hex 32
 BETTER_AUTH_SECRET=your-random-32-char-secret
 
-# Your noBGP public URL (from Step 2)
+# Your noBGP public URL — set this after Step 3
 APP_URL=https://yourapp.nobgp.com
 NEXT_PUBLIC_APP_URL=https://yourapp.nobgp.com
 
-# Google OAuth — see Step 4
+# Google OAuth — set this after Step 4
 GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=your-client-secret
 
@@ -123,30 +108,14 @@ CLAMAV_REQUIRED=true
 
 ---
 
-### Step 4 — Set up Google OAuth
-
-1. Go to the [Google Cloud Console](https://console.cloud.google.com)
-2. Create a new project (or select an existing one)
-3. Navigate to **APIs & Services → Credentials → Create Credentials → OAuth 2.0 Client ID**
-4. Set the application type to **Web application**
-5. Add your noBGP URL as an authorized redirect URI:
-   ```
-   https://yourapp.nobgp.com/api/auth/callback/google
-   ```
-6. Copy the **Client ID** and **Client Secret** into your `.env` file
-
-> **Gmail import:** Gmail access is requested separately — only when you first use the "Scan Gmail inbox" feature. You do not need to enable the Gmail API in advance; the app will prompt for permission when needed.
-
----
-
-### Step 5 — Start the stack
+### Step 3 — Start the stack
 
 ```bash
 cd infra
 docker compose up -d
 ```
 
-This starts: PostgreSQL, PgBouncer, Redis, MinIO, ClamAV, and the app.
+This starts: PostgreSQL, PgBouncer, Redis, MinIO, ClamAV, and the app on port 3000.
 
 > **First boot:** ClamAV downloads its virus signature database on startup. This takes 2–5 minutes. Uploads may be blocked until it's ready if `CLAMAV_REQUIRED=true`.
 
@@ -159,26 +128,67 @@ docker compose logs app --tail 50
 
 ---
 
-### Step 6 — Run database migrations
+### Step 4 — Publish via noBGP to get your public URL
+
+noBGP creates an HTTPS tunnel to your app and gives you a public URL that Google OAuth can use as a redirect URI. See the [noBGP proxy CLI reference](https://docs.nobgp.com/cli-reference#nobgp-proxy) for full options.
 
 ```bash
-docker compose exec app node -e "
-  const { drizzle } = require('drizzle-orm/node-postgres');
-  const { Pool } = require('pg');
-  const { migrate } = require('drizzle-orm/node-postgres/migrator');
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-  const db = drizzle(pool);
-  migrate(db, { migrationsFolder: '/app/packages/db/src/migrations' })
-    .then(() => { console.log('Migrations applied'); pool.end(); })
-    .catch(e => { console.error(e); process.exit(1); });
-"
+nobgp proxy publish --proxy-url http://localhost:3000 --title "My Trip Planner"
 ```
 
-Or from your host machine with `DATABASE_URL` set:
+Note the public URL — it will look like `https://yourapp.nobgp.com`.
+
+> **Using Claude with the noBGP MCP server?** If you have the noBGP MCP server connected to Claude Code, you can simply ask: *"Publish a proxy for my Trip Planner app running on port 3000"* and Claude will run the command for you.
+
+> **Private proxy:** noBGP supports both public and private proxies. Either works — Google OAuth only requires a valid HTTPS URL with a real domain, which noBGP provides.
+
+Once you have the URL, update your `.env` file:
 
 ```bash
-pnpm --filter @trip/db exec drizzle-kit migrate
+APP_URL=https://yourapp.nobgp.com
+NEXT_PUBLIC_APP_URL=https://yourapp.nobgp.com
 ```
+
+Then restart the app to pick up the new URL:
+
+```bash
+docker compose restart app
+```
+
+---
+
+### Step 5 — Set up Google OAuth
+
+> **Note:** My Trip Planner uses **Google sign-in only** — there are no username/password accounts.
+
+1. Go to the [Google Cloud Console](https://console.cloud.google.com)
+2. Create a new project (or select an existing one)
+3. Navigate to **APIs & Services → Credentials → Create Credentials → OAuth 2.0 Client ID**
+4. Set the application type to **Web application**
+5. Add your noBGP URL as an authorized redirect URI:
+   ```
+   https://yourapp.nobgp.com/api/auth/callback/google
+   ```
+6. Copy the **Client ID** and **Client Secret** into your `.env` file, then restart the app:
+   ```bash
+   docker compose restart app
+   ```
+
+> **Gmail import:** Gmail access is requested separately — only when you first use the "Scan Gmail inbox" feature. You do not need to enable the Gmail API in advance; the app will prompt for permission when needed.
+
+---
+
+### Step 6 — Open the app and sign in
+
+Navigate to your noBGP URL:
+
+```
+https://yourapp.nobgp.com
+```
+
+Click **Sign in with Google** and log in with your Google account. The first user to sign in becomes the owner of that account — no additional setup required.
+
+Share the URL with anyone you want to invite; they sign in with their own Google account and you can grant them access to trips from the Settings page.
 
 ---
 
@@ -189,7 +199,6 @@ git pull
 cd infra
 docker compose build app
 docker compose up -d app
-# Then re-run migrations if needed
 ```
 
 ---
@@ -212,7 +221,7 @@ pnpm install
 # Copy env and fill in your values
 cp .env.example .env
 
-# Run database migrations
+# Run database migrations (first time only)
 DATABASE_URL=postgresql://tripit:tripit_dev_password@localhost:5432/tripit \
   pnpm --filter @trip/db exec drizzle-kit migrate
 
