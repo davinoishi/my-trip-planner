@@ -3,7 +3,7 @@ FROM node:22-alpine AS deps
 RUN corepack enable && corepack prepare pnpm@latest --activate
 WORKDIR /app
 
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* .npmrc ./
 COPY packages/config/package.json ./packages/config/
 COPY packages/db/package.json ./packages/db/
 COPY packages/shared/package.json ./packages/shared/
@@ -18,7 +18,6 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 WORKDIR /app
 
 COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/packages/config/node_modules ./packages/config/node_modules
 COPY --from=deps /app/packages/db/node_modules ./packages/db/node_modules
 COPY --from=deps /app/packages/shared/node_modules ./packages/shared/node_modules
 COPY --from=deps /app/packages/api/node_modules ./packages/api/node_modules
@@ -28,6 +27,16 @@ COPY . .
 
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
+
+# NEXT_PUBLIC_* vars must be available at build time — they are baked into the client bundle.
+# DATABASE_URL is validated at module-load time during Next.js static generation; the dummy
+# value is replaced by the real runtime value via the environment section in docker-compose.
+ARG DATABASE_URL=postgresql://build:build@localhost:5432/build
+ARG NEXT_PUBLIC_APP_URL
+ARG NEXT_PUBLIC_MAPBOX_TOKEN
+ENV DATABASE_URL=$DATABASE_URL
+ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
+ENV NEXT_PUBLIC_MAPBOX_TOKEN=$NEXT_PUBLIC_MAPBOX_TOKEN
 
 RUN pnpm --filter @trip/web build
 
@@ -52,4 +61,3 @@ ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
 CMD ["node", "apps/web/server.js"]
-

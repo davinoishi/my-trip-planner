@@ -12,8 +12,6 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
-    ports:
-      - "5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U tripit -d tripit"]
       interval: 10s
@@ -22,37 +20,13 @@ services:
     networks:
       - internal
 
-  # ─── Connection Pooler ──────────────────────────────────────────────────────
-  pgbouncer:
-    image: bitnami/pgbouncer:latest
-    restart: unless-stopped
-    environment:
-      POSTGRESQL_HOST: postgres
-      POSTGRESQL_PORT: 5432
-      POSTGRESQL_DATABASE: tripit
-      POSTGRESQL_USERNAME: tripit
-      POSTGRESQL_PASSWORD: ${POSTGRES_PASSWORD:-tripit_dev_password}
-      PGBOUNCER_DATABASE: tripit
-      PGBOUNCER_POOL_MODE: transaction
-      PGBOUNCER_MAX_CLIENT_CONN: 100
-      PGBOUNCER_DEFAULT_POOL_SIZE: 20
-    ports:
-      - "5433:5432"
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks:
-      - internal
-
-  # ─── Cache & Job Queue ───────────────────────────────────────────────────────
+  # ─── Cache & Rate Limiting ───────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
     restart: unless-stopped
     command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis_dev_password}
     volumes:
       - redis_data:/data
-    ports:
-      - "6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "--pass", "${REDIS_PASSWORD:-redis_dev_password}", "ping"]
       interval: 10s
@@ -99,6 +73,8 @@ services:
       - internal
 
   # ─── Malware Scanner ────────────────────────────────────────────────────────
+  # Note: clamav/clamav:latest has no ARM64 image. On ARM64 (e.g. Raspberry Pi),
+  # remove this service and set CLAMAV_REQUIRED=false in your .env.
   clamav:
     image: clamav/clamav:latest
     restart: unless-stopped
@@ -106,8 +82,6 @@ services:
       CLAMAV_NO_FRESHCLAM: "false"
     volumes:
       - clamav_data:/var/lib/clamav
-    ports:
-      - "3310:3310"
     healthcheck:
       test: ["CMD", "clamdcheck.sh"]
       interval: 60s
@@ -117,40 +91,36 @@ services:
     networks:
       - internal
 
-  # ─── Reverse Proxy ──────────────────────────────────────────────────────────
-  caddy:
-    image: caddy:2-alpine
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
-    depends_on:
-      - app
-    networks:
-      - internal
-
   # ─── Application ────────────────────────────────────────────────────────────
   app:
     build:
       context: ..
       dockerfile: infra/Dockerfile
       target: runner
+      args:
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+        NEXT_PUBLIC_MAPBOX_TOKEN: ${NEXT_PUBLIC_MAPBOX_TOKEN}
     restart: unless-stopped
+    ports:
+      - "3000:3000"
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgresql://tripit:${POSTGRES_PASSWORD:-tripit_dev_password}@pgbouncer:5432/tripit
+      DATABASE_URL: postgresql://tripit:${POSTGRES_PASSWORD:-tripit_dev_password}@postgres:5432/tripit
       REDIS_URL: redis://:${REDIS_PASSWORD:-redis_dev_password}@redis:6379
       MINIO_ENDPOINT: http://minio:9000
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin_dev_password}
-      NEXT_PUBLIC_APP_URL: ${APP_URL:-http://localhost}
+      MINIO_PUBLIC_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}/files
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      NEXT_PUBLIC_MAPBOX_TOKEN: ${NEXT_PUBLIC_MAPBOX_TOKEN}
+      BETTER_AUTH_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
-      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      CLAMAV_HOST: clamav
+      CLAMAV_PORT: 3310
+      CLAMAV_REQUIRED: ${CLAMAV_REQUIRED:-true}
     depends_on:
       postgres:
         condition: service_healthy
@@ -164,10 +134,7 @@ volumes:
   redis_data:
   minio_data:
   clamav_data:
-  caddy_data:
-  caddy_config:
 
 networks:
   internal:
     driver: bridge
-
