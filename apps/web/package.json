@@ -37,7 +37,7 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4.2.2",
+    "@tailwindcss/postcss": "^4.2.4",
     "@trip/config": "workspace:*",
     "@types/mapbox-gl": "^3.5.0",
     "@types/node": "^22",
