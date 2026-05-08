@@ -1,4 +1,4 @@
-FROM node:22-alpine AS deps
+FROM node:26-alpine AS deps
 RUN corepack enable && corepack prepare pnpm@latest --activate
 WORKDIR /app
 
@@ -11,7 +11,7 @@ COPY apps/web/package.json ./apps/web/
 
 RUN pnpm install --frozen-lockfile
 
-FROM node:22-alpine AS builder
+FROM node:26-alpine AS builder
 RUN corepack enable && corepack prepare pnpm@latest --activate
 WORKDIR /app
 
@@ -35,7 +35,7 @@ ENV NEXT_PUBLIC_MAPBOX_TOKEN=$NEXT_PUBLIC_MAPBOX_TOKEN
 
 RUN pnpm --filter @trip/web build
 
-FROM node:22-alpine AS runner
+FROM node:26-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
