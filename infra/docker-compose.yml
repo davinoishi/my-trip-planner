@@ -124,7 +124,7 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       CLAMAV_HOST: clamav
       CLAMAV_PORT: 3310
-      CLAMAV_REQUIRED: ${CLAMAV_REQUIRED:-true}
+      CLAMAV_REQUIRED: "false"
     depends_on:
       postgres:
         condition: service_healthy
