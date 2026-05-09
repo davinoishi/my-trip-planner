@@ -19,7 +19,7 @@
     "@trip/config": "workspace:*",
     "@types/pg": "^8.11.11",
     "drizzle-kit": "^0.30.4",
-    "typescript": "^5.8.2"
+    "typescript": "^6.0.3"
   }
 }
 

@@ -35,7 +35,7 @@
   "devDependencies": {
     "@trip/config": "workspace:*",
     "@types/mailparser": "^3.4.6",
-    "typescript": "^5.8.2"
+    "typescript": "^6.0.3"
   }
 }
 
