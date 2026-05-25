@@ -12,13 +12,13 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "drizzle-orm": "^0.41.0",
-    "pg": "^8.14.1"
+    "drizzle-orm": "^0.45.2",
+    "pg": "^8.21.0"
   },
   "devDependencies": {
     "@trip/config": "workspace:*",
     "@types/pg": "^8.11.11",
-    "drizzle-kit": "^0.30.4",
+    "drizzle-kit": "^0.31.10",
     "typescript": "^5.8.2"
   }
 }
