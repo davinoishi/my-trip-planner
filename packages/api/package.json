@@ -18,18 +18,18 @@
     "./lib/access": "./src/lib/access.ts"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.80.0",
-    "@aws-sdk/client-s3": "^3.1014.0",
-    "@aws-sdk/s3-request-presigner": "^3.1014.0",
+    "@anthropic-ai/sdk": "^0.115.0",
+    "@aws-sdk/client-s3": "^3.1099.0",
+    "@aws-sdk/s3-request-presigner": "^3.1099.0",
     "@trip/db": "workspace:*",
     "@trip/shared": "workspace:*",
-    "@trpc/server": "^11.1.0",
-    "date-fns": "^4.1.0",
-    "drizzle-orm": "^0.41.0",
+    "@trpc/server": "^11.18.0",
+    "date-fns": "^4.4.0",
+    "drizzle-orm": "^0.45.2",
     "googleapis": "^171.4.0",
-    "imapflow": "^1.2.16",
-    "ioredis": "^5.10.1",
-    "mailparser": "^3.9.4",
+    "imapflow": "^1.6.5",
+    "ioredis": "^5.11.1",
+    "mailparser": "^3.9.14",
     "zod": "^3.24.2"
   },
   "devDependencies": {
