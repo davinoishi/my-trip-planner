@@ -1,4 +1,4 @@
-<!-- Project card. Format: ../INDEX.md (top). Workflows: ../WORKFLOWS.md. Tools: ../TOOLS.md. Written 6 Oct 2026. -->
+<!-- Project card. Format: ../../INDEX.md (top). Workflows: ../../WORKFLOWS.md. Tools: ../../TOOLS.md. Written 6 Oct 2026. -->
 
 # Trip planner · project card
 
@@ -6,7 +6,7 @@
 |---|---|
 | **Purpose** | A TripIt-alternative travel itinerary platform (MVP). |
 | **Status** | recent |
-| **Target home** | `apps/trip-planner` |
+| **Target home** | Here (moved 7 Oct 2026) |
 | **Repo** | `davinoishi/my-trip-planner` |
 | **Workflows** | None (an app). |
 | **Tools · where they run** | Turborepo monorepo: Next.js, tRPC, Drizzle, PostgreSQL, Better Auth. |
