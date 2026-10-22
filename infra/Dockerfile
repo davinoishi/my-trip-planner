@@ -1,4 +1,9 @@
-FROM node:22-alpine AS deps
+# Node is pinned to an exact patch so a security release is a deliberate rebuild,
+# not whatever the floating tag pointed at on the last build. 22.23.4 carries the
+# 21 Oct 2026 fixes; production was still on 22.22.2 from a May build.
+# (pnpm install has no audit step, so unlike the npm-based apps there is no
+# --no-audit to add.)
+FROM node:22.23.4-alpine AS deps
 RUN corepack enable && corepack prepare pnpm@latest --activate
 WORKDIR /app
 
@@ -11,7 +16,7 @@ COPY apps/web/package.json ./apps/web/
 
 RUN pnpm install --frozen-lockfile
 
-FROM node:22-alpine AS builder
+FROM node:22.23.4-alpine AS builder
 RUN corepack enable && corepack prepare pnpm@latest --activate
 WORKDIR /app
 
@@ -35,7 +40,7 @@ ENV NEXT_PUBLIC_MAPBOX_TOKEN=$NEXT_PUBLIC_MAPBOX_TOKEN
 
 RUN pnpm --filter @trip/web build
 
-FROM node:22-alpine AS runner
+FROM node:22.23.4-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
